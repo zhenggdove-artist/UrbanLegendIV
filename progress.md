@@ -12,6 +12,11 @@ Progress:
 - Localized the in-game UI and creator/editor panels to Traditional Chinese, including legacy localStorage label migration for default English names.
 - Fixed movement orientation so Up/W moves forward relative to the camera and Down/S moves backward; fixed vertical mouse drag so dragging downward increases the top-down view angle.
 - Re-ran syntax check, direct Playwright smoke test for movement/drag/editor Chinese UI, and the develop-web-game Playwright client. No console/page errors were captured.
+- Redesigned World Builder around player-driven building: the creator backend can keep player movement active in world mode, `B/Tab` toggles a bottom toolkit, `E` places the current tool in front of the player, clicking objects switches into object adjustment, dragging can resize or move objects, and clicking the player/empty space returns to player control.
+- Added an Actor/NPC editor mode in the Shift+C backend. It edits player/NPC role data, primitive/PNG sequence/GLTF model sources, model scale, PNG action frame ranges, interaction behavior, and NPC instances placed near the player.
+- Extended project JSON/localStorage persistence to include `actors`, and added actor import/export through the creator backend.
+- Re-ran syntax parsing, the develop-web-game Playwright client, and a direct Playwright flow covering Shift+C, world-mode player movement, toolkit opening, keyboard placement, object resize dragging, returning to player control, actor-mode NPC creation, and PNG sequence import. No console/page errors were captured.
+- Adjusted World Builder empty-space/floor pointer handling so left-drag still controls the camera in creation mode; object installation is now through `E` or panel buttons. Re-tested that downward mouse drag increases top-down pitch and does not create objects, then re-ran and visually inspected the standard Playwright screenshot.
 
 TODO:
-- No open implementation TODOs from this pass.
+- 3D model import currently supports GLB or self-contained GLTF data URLs; GLTF files with separate external `.bin`/texture files will need an asset resolver if that workflow becomes important.

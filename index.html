@@ -93,6 +93,11 @@
   .modal h2{margin:0;color:#f6c453;font:800 13px/1 var(--font);letter-spacing:.08em;text-transform:uppercase}
   .modal textarea{min-height:360px;white-space:pre;overflow:auto}
   .modal-actions{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+  .world-toolkit{position:fixed;left:50%;bottom:82px;z-index:5;transform:translateX(-50%);display:grid;grid-template-columns:repeat(5,minmax(82px,1fr));gap:8px;width:min(760px,calc(100vw - 28px));padding:10px;border:1px solid rgba(94,234,212,.35);border-radius:8px;background:rgba(17,24,39,.94);box-shadow:var(--shadow);pointer-events:auto}
+  .world-toolkit[hidden]{display:none}
+  .world-toolkit button{min-height:48px;white-space:normal;line-height:1.15}
+  .world-hint{position:fixed;left:50%;top:78px;z-index:5;transform:translateX(-50%);max-width:min(720px,calc(100vw - 28px));padding:9px 12px;border:1px solid rgba(246,196,83,.38);border-radius:8px;background:rgba(7,16,24,.86);color:#f7fbff;font:12px/1.45 var(--mono);text-align:center;pointer-events:none}
+  .world-hint[hidden]{display:none}
   body.creator-active #ui-stage{z-index:980}
   body.creator-world .game-ui-element{pointer-events:none}
   @media (max-width:900px){
@@ -104,7 +109,7 @@
   }
 </style>
 <script type="importmap">
-{"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js"}}
+{"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"}}
 </script>
 </head>
 <body>
@@ -112,9 +117,11 @@
 <div id="ui-stage"></div>
 <div id="game-toast"></div>
 <input id="asset-file-input" type="file" accept="image/*" hidden>
+<input id="actor-file-input" type="file" accept="image/png,image/*,.png,.glb,.gltf,model/gltf+json,model/gltf-binary" multiple hidden>
 
 <script type="module">
 import * as THREE from 'three';
+import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 
 const STORAGE_KEY='webGameCreatorTemplate.project.v1';
 const DEG=Math.PI/180;
@@ -159,6 +166,8 @@ const SCREEN_LABELS={game:'遊戲畫面',loading:'讀取畫面',results:'結算�
 const BIND_LABELS={none:'無',score:'分數',health:'生命',message:'訊息',action:'互動',restart:'重新開始'};
 const SKIN_MODE_LABELS={color:'純色',stretch:'拉伸貼圖',repeat:'重複平鋪',single:'單面貼圖',perFace:'每面貼圖'};
 const FLAG_LABELS={collidable:'可碰撞',destructible:'可破壞',interactive:'可互動',trigger:'觸發區',spawn:'出生點'};
+const ACTOR_ROLE_LABELS={player:'主角',npc:'NPC'};
+const ACTOR_MODEL_LABELS={primitive:'基本模型',spriteSequence:'PNG 序列',gltf:'3D 模型'};
 const LEGACY_LABELS={
   Block:'方塊',Floor:'地板',Wall:'牆面',Platform:'平台',Obstacle:'障礙物',Destructible:'可破壞物',
   'Trigger Zone':'觸發區','Spawn Point':'出生點','Text Sign':'文字牌',Interactive:'互動物件',
@@ -185,6 +194,60 @@ function localizeUIElement(element){
   element.name=localizeLegacyString(element.name);
   element.text=localizeLegacyString(element.text);
   return element;
+}
+
+function makeActorRole(id,patch={}){
+  const isPlayer=id==='player';
+  return mergeObject({
+    id,
+    name:isPlayer?'主角':'NPC',
+    role:isPlayer?'player':'npc',
+    model:{type:'primitive',src:'',fileName:'',sequence:[],frameRate:8,scale:isPlayer?1:0.9,billboard:true},
+    actions:[
+      {id:'idle',name:'待機',frames:{from:0,to:0},fps:6,loop:true},
+      {id:'move',name:'移動',frames:{from:0,to:99},fps:10,loop:true},
+      {id:'interact',name:'互動',frames:{from:0,to:99},fps:8,loop:false}
+    ],
+    interaction:{message:isPlayer?'':'你好',onInteract:'message',affinity:0}
+  },patch);
+}
+
+function createDefaultActors(){
+  return {
+    schema:'template.actors',
+    version:1,
+    selectedRole:'player',
+    roles:{
+      player:makeActorRole('player',{name:'主角'}),
+      npc:makeActorRole('npc',{name:'NPC'})
+    },
+    npcs:[
+      {id:'npc_sample',actorId:'npc',name:'測試 NPC',position:{x:1.8,y:0.75,z:1.8},rotation:{x:0,y:0,z:0},radius:0.75,enabled:true}
+    ]
+  };
+}
+
+function normalizeActors(actors){
+  const fallback=createDefaultActors();
+  if(!actors||typeof actors!=='object') return fallback;
+  return {
+    schema:'template.actors',
+    version:1,
+    selectedRole:actors.selectedRole||'player',
+    roles:{
+      player:makeActorRole('player',actors.roles?.player||{}),
+      npc:makeActorRole('npc',actors.roles?.npc||{})
+    },
+    npcs:Array.isArray(actors.npcs)?actors.npcs.map(npc=>({
+      id:npc.id||uid('npc'),
+      actorId:npc.actorId||'npc',
+      name:npc.name||'NPC',
+      position:{x:toNumber(npc.position?.x,1.8),y:toNumber(npc.position?.y,.75),z:toNumber(npc.position?.z,1.8)},
+      rotation:{x:toNumber(npc.rotation?.x,0),y:toNumber(npc.rotation?.y,0),z:toNumber(npc.rotation?.z,0)},
+      radius:toNumber(npc.radius,.75),
+      enabled:npc.enabled!==false
+    })):fallback.npcs
+  };
 }
 
 function makeWorldObject(type,patch={}){
@@ -283,12 +346,13 @@ function createDefaultUI(){
 }
 
 function normalizeProject(project){
-  const fallback={version:1,world:createDefaultWorld(),ui:createDefaultUI()};
+  const fallback={version:1,world:createDefaultWorld(),ui:createDefaultUI(),actors:createDefaultActors()};
   if(!project||typeof project!=='object') return fallback;
   return {
     version:1,
     world:normalizeWorld(project.world||project),
-    ui:normalizeUI(project.ui)
+    ui:normalizeUI(project.ui),
+    actors:normalizeActors(project.actors)
   };
 }
 
@@ -645,6 +709,168 @@ class WorldRuntime{
   }
 }
 
+class ActorRuntime{
+  constructor(app){
+    this.app=app;
+    this.scene=app.scene;
+    this.loader=new GLTFLoader();
+    this.data=createDefaultActors();
+    this.root=new THREE.Group();
+    this.root.name='ActorRuntimeNPCs';
+    this.scene.add(this.root);
+    this.npcMeshes=new Map();
+    this.gltfCache=new Map();
+    this.spriteStates=new Map();
+    this.playerAction='idle';
+  }
+  load(actors){
+    this.data=normalizeActors(actors);
+    this.rebuildPlayer();
+    this.rebuildNPCs();
+  }
+  serialize(){
+    return deepClone(this.data);
+  }
+  saveLocal(){
+    this.app.saveProject();
+  }
+  getRole(role){
+    return this.data.roles?.[role]||this.data.roles.player;
+  }
+  updateRole(role,patch){
+    this.data.roles[role]=makeActorRole(role,mergeObject(this.getRole(role),patch));
+    this.rebuildPlayer();
+    this.rebuildNPCs();
+    this.saveLocal();
+  }
+  rebuildPlayer(){
+    this.buildVisualInto(this.app.player.mesh,this.getRole('player'),'player');
+  }
+  rebuildNPCs(){
+    this.root.clear();
+    this.npcMeshes.clear();
+    for(const key of Array.from(this.spriteStates.keys())){
+      if(key!=='player') this.spriteStates.delete(key);
+    }
+    for(const npc of this.data.npcs){
+      if(npc.enabled===false) continue;
+      const group=new THREE.Group();
+      group.name=npc.name||'NPC';
+      group.userData.npcId=npc.id;
+      group.position.set(npc.position.x,npc.position.y,npc.position.z);
+      group.rotation.set((npc.rotation.x||0)*DEG,(npc.rotation.y||0)*DEG,(npc.rotation.z||0)*DEG);
+      this.buildVisualInto(group,this.getRole(npc.actorId||'npc'),npc.id);
+      this.root.add(group);
+      this.npcMeshes.set(npc.id,group);
+    }
+  }
+  buildVisualInto(group,role,stateKey){
+    group.clear();
+    this.spriteStates.delete(stateKey);
+    const model=role.model||{};
+    const scale=toNumber(model.scale,1);
+    if(model.type==='spriteSequence' && model.sequence?.length){
+      const sprite=new THREE.Sprite(new THREE.SpriteMaterial({map:this.textureFromSource(model.sequence[0]),transparent:true}));
+      sprite.scale.set(1.1*scale,1.55*scale,1);
+      sprite.position.y=.45*scale;
+      group.add(sprite);
+      this.spriteStates.set(stateKey,{sprite,role,frame:0,timer:0,action:'idle'});
+      return;
+    }
+    if(model.type==='gltf' && model.src){
+      const holder=new THREE.Group();
+      holder.scale.setScalar(scale);
+      group.add(holder);
+      this.loadGLTFInto(holder,model.src);
+      return;
+    }
+    const geo=role.role==='player'
+      ? new THREE.CapsuleGeometry(this.app.player.radius,this.app.player.height-this.app.player.radius*2,8,16)
+      : new THREE.CapsuleGeometry(.32,1.0,8,12);
+    const mat=new THREE.MeshStandardMaterial({color:role.role==='player'?'#5eead4':'#f6c453',roughness:.45});
+    const mesh=new THREE.Mesh(geo,mat);
+    mesh.scale.setScalar(scale);
+    group.add(mesh);
+  }
+  textureFromSource(src){
+    return this.app.textureBank.texture(src,{repeat:{x:1,y:1},wrap:false});
+  }
+  loadGLTFInto(holder,src){
+    if(this.gltfCache.has(src)){
+      holder.add(this.gltfCache.get(src).clone(true));
+      return;
+    }
+    this.loader.load(src,gltf=>{
+      const scene=gltf.scene||gltf.scenes?.[0];
+      if(!scene) return;
+      this.gltfCache.set(src,scene);
+      holder.clear();
+      holder.add(scene.clone(true));
+    },undefined,err=>console.warn('3D 模型載入失敗',err));
+  }
+  setRoleModel(roleId,model){
+    const role=this.getRole(roleId);
+    role.model={...role.model,...model};
+    this.rebuildPlayer();
+    this.rebuildNPCs();
+    this.saveLocal();
+  }
+  update(dt){
+    const moving=this.app.input.movementVector();
+    this.playerAction=(Math.abs(moving.forward)+Math.abs(moving.strafe))>0?'move':'idle';
+    for(const [key,state] of this.spriteStates.entries()){
+      const model=state.role.model||{};
+      const sequence=model.sequence||[];
+      if(sequence.length<2) continue;
+      const action=key==='player'?this.playerAction:'idle';
+      const actionDef=(state.role.actions||[]).find(a=>a.id===action)||state.role.actions?.[0]||{frames:{from:0,to:sequence.length-1},fps:model.frameRate||8};
+      const from=clamp(toNumber(actionDef.frames?.from,0),0,sequence.length-1);
+      const to=clamp(toNumber(actionDef.frames?.to,sequence.length-1),from,sequence.length-1);
+      const fps=Math.max(1,toNumber(actionDef.fps,model.frameRate||8));
+      state.timer+=dt;
+      if(state.timer>=1/fps){
+        state.timer=0;
+        state.frame=state.frame<from||state.frame>=to?from:state.frame+1;
+        state.sprite.material.map=this.textureFromSource(sequence[state.frame]);
+        state.sprite.material.needsUpdate=true;
+      }
+      if(model.billboard!==false) state.sprite.lookAt(this.app.camera.position);
+    }
+  }
+  interact(position){
+    let best=null;
+    let bestDist=Infinity;
+    for(const npc of this.data.npcs){
+      if(npc.enabled===false) continue;
+      const mesh=this.npcMeshes.get(npc.id);
+      if(!mesh) continue;
+      const dist=mesh.position.distanceTo(position);
+      if(dist<Math.max(1.4,npc.radius+0.9)&&dist<bestDist){best={npc,mesh};bestDist=dist;}
+    }
+    if(!best) return false;
+    const role=this.getRole(best.npc.actorId||'npc');
+    const interaction=role.interaction||{};
+    if(interaction.onInteract==='score') this.app.game.score+=Math.max(1,toNumber(interaction.affinity,1));
+    if(interaction.onInteract==='damage') this.app.game.health=clamp(this.app.game.health-Math.max(1,Math.abs(toNumber(interaction.affinity,5))),0,100);
+    this.app.showMessage(interaction.message||best.npc.name||'NPC');
+    return true;
+  }
+  addNPCNearPlayer(){
+    const forward=this.app.getCameraForward();
+    const pos=this.app.player.position.clone().addScaledVector(forward,2.5);
+    const npc={id:uid('npc'),actorId:'npc',name:'NPC',position:{x:pos.x,y:.75,z:pos.z},rotation:{x:0,y:0,z:0},radius:.75,enabled:true};
+    this.data.npcs.push(npc);
+    this.rebuildNPCs();
+    this.saveLocal();
+    return npc;
+  }
+  removeNPC(id){
+    this.data.npcs=this.data.npcs.filter(npc=>npc.id!==id);
+    this.rebuildNPCs();
+    this.saveLocal();
+  }
+}
+
 class UILayer{
   constructor(app){
     this.app=app;
@@ -774,7 +1000,7 @@ class InputController{
     }
     if(this.app.creator.active){
       if(this.app.creator.handleKeyDown(event)) return;
-      return;
+      if(!this.app.creator.canUpdatePlayer()) return;
     }
     if(isEditable(document.activeElement)) return;
     if(event.code==='KeyF'){
@@ -793,13 +1019,15 @@ class InputController{
     this.keys.delete(event.code);
   }
   onPointerDown(event){
-    if(this.app.creator.active||event.button!==0) return;
+    if(this.app.creator.active&&!this.app.creator.canUpdatePlayer()) return;
+    if(event.button!==0) return;
     this.pointer.dragging=true;
     this.pointer.lastX=event.clientX;
     this.pointer.lastY=event.clientY;
   }
   onPointerMove(event){
-    if(!this.pointer.dragging||this.app.creator.active) return;
+    if(!this.pointer.dragging) return;
+    if(this.app.creator.active&&!this.app.creator.canUpdatePlayer()) return;
     const dx=event.clientX-this.pointer.lastX;
     const dy=event.clientY-this.pointer.lastY;
     this.pointer.lastX=event.clientX;
@@ -832,6 +1060,7 @@ class GameApp{
     this.player={radius:.35,height:1.55,speed:4.2,mesh:null,position:new THREE.Vector3()};
     this.setupScene();
     this.world=new WorldRuntime(this);
+    this.actors=new ActorRuntime(this);
     this.ui=new UILayer(this);
     this.creator=new CreatorBackend(this);
     this.input=new InputController(this);
@@ -848,9 +1077,7 @@ class GameApp{
     const sun=new THREE.DirectionalLight('#ffffff',1.8);
     sun.position.set(8,12,6);
     this.scene.add(sun);
-    const playerGeo=new THREE.CapsuleGeometry(this.player.radius,this.player.height-this.player.radius*2,8,16);
-    const playerMat=new THREE.MeshStandardMaterial({color:'#5eead4',roughness:.45});
-    this.player.mesh=new THREE.Mesh(playerGeo,playerMat);
+    this.player.mesh=new THREE.Group();
     this.player.mesh.name='TemplatePlayer';
     this.scene.add(this.player.mesh);
   }
@@ -859,19 +1086,21 @@ class GameApp{
     try{project=JSON.parse(localStorage.getItem(STORAGE_KEY)||'null');}catch(_){}
     const normalized=normalizeProject(project);
     this.world.load(normalized.world);
+    this.actors.load(normalized.actors);
     this.ui.load(normalized.ui);
     this.restartGame(false);
   }
   saveProject(){
-    const project={schema:'template.project',version:1,world:this.world.serialize(),ui:this.ui.serialize()};
+    const project={schema:'template.project',version:1,world:this.world.serialize(),ui:this.ui.serialize(),actors:this.actors.serialize()};
     try{localStorage.setItem(STORAGE_KEY,JSON.stringify(project));}catch(err){console.warn('儲存失敗',err);}
   }
   exportProject(){
-    return {schema:'template.project',version:1,world:this.world.serialize(),ui:this.ui.serialize()};
+    return {schema:'template.project',version:1,world:this.world.serialize(),ui:this.ui.serialize(),actors:this.actors.serialize()};
   }
   importProject(project){
     const normalized=normalizeProject(project);
     this.world.load(normalized.world);
+    this.actors.load(normalized.actors);
     this.ui.load(normalized.ui);
     this.restartGame(false);
     this.saveProject();
@@ -910,8 +1139,9 @@ class GameApp{
       this.game.messageTimer-=dt;
       if(this.game.messageTimer<=0) this.game.message='';
     }
-    if(!this.creator.active) this.updatePlayer(dt);
+    if(!this.creator.active || this.creator.canUpdatePlayer()) this.updatePlayer(dt);
     this.world.updateTriggers(this.player.position);
+    this.actors.update(dt);
     this.updateCamera();
     this.ui.updateBindings();
   }
@@ -966,6 +1196,7 @@ class GameApp{
   }
   interact(){
     if(this.creator.active) return;
+    if(this.actors.interact(this.player.position)) return;
     this.world.interact(this.player.position);
   }
   showMessage(message){
@@ -993,6 +1224,8 @@ class GameApp{
       score:this.game.score,
       health:this.game.health,
       message:this.game.message,
+      creator:this.creator.active?this.creator.getDebugState():null,
+      actors:{npcCount:this.actors.data.npcs.length,playerModel:this.actors.getRole('player')?.model?.type||'primitive',npcModel:this.actors.getRole('npc')?.model?.type||'primitive'},
       objects:nearby
     });
   }
@@ -1005,6 +1238,7 @@ class CreatorBackend{
     this.mode='world';
     this.root=this.buildRoot();
     this.worldBuilder=new WorldBuilder(app,this);
+    this.actorEditor=new ActorEditor(app,this);
     this.uiEditor=new UIEditor(app,this);
     this.status=$('[data-creator-status]',this.root);
     this.bindToolbar();
@@ -1017,6 +1251,7 @@ class CreatorBackend{
       <div class="creator-toolbar">
         <span class="creator-title">遊戲創作後台</span>
         <button type="button" data-mode="world">空間編輯</button>
+        <button type="button" data-mode="actor">角色/NPC</button>
         <button type="button" data-mode="ui">介面編輯</button>
         <button type="button" data-action="save" class="primary">儲存</button>
         <button type="button" data-action="export-project">匯出專案</button>
@@ -1027,6 +1262,8 @@ class CreatorBackend{
       </div>
       <section class="creator-panel left" data-world-left></section>
       <section class="creator-panel right" data-world-right></section>
+      <section class="creator-panel left" data-actor-left hidden></section>
+      <section class="creator-panel right" data-actor-right hidden></section>
       <section class="creator-panel left" data-ui-left hidden></section>
       <section class="creator-panel right" data-ui-right hidden></section>
       <div class="ui-editor-layer" data-ui-editor-layer hidden></div>
@@ -1064,28 +1301,39 @@ class CreatorBackend{
   disable(){
     this.active=false;
     this.worldBuilder.disable();
+    this.actorEditor.disable();
     this.uiEditor.disable();
     this.root.hidden=true;
-    document.body.classList.remove('creator-active','creator-world','creator-ui');
+    document.body.classList.remove('creator-active','creator-world','creator-actor','creator-ui');
     this.app.world.setEditorMode(false);
     this.app.saveProject();
     this.app.input.clear();
   }
   setMode(mode){
-    this.mode=mode==='ui'?'ui':'world';
+    this.mode=['world','actor','ui'].includes(mode)?mode:'world';
     document.body.classList.toggle('creator-world',this.mode==='world');
+    document.body.classList.toggle('creator-actor',this.mode==='actor');
     document.body.classList.toggle('creator-ui',this.mode==='ui');
     $$('[data-mode]',this.root).forEach(button=>button.classList.toggle('is-active',button.dataset.mode===this.mode));
     $('[data-world-left]',this.root).hidden=this.mode!=='world';
     $('[data-world-right]',this.root).hidden=this.mode!=='world';
+    $('[data-actor-left]',this.root).hidden=this.mode!=='actor';
+    $('[data-actor-right]',this.root).hidden=this.mode!=='actor';
     $('[data-ui-left]',this.root).hidden=this.mode!=='ui';
     $('[data-ui-right]',this.root).hidden=this.mode!=='ui';
     if(this.mode==='world'){
+      this.actorEditor.disable();
       this.uiEditor.disable();
       this.worldBuilder.enable();
       this.setStatus('空間編輯模式');
+    }else if(this.mode==='actor'){
+      this.worldBuilder.disable();
+      this.uiEditor.disable();
+      this.actorEditor.enable();
+      this.setStatus('角色與 NPC 編輯模式');
     }else{
       this.worldBuilder.disable();
+      this.actorEditor.disable();
       this.uiEditor.enable();
       this.setStatus('介面編輯模式');
     }
@@ -1093,6 +1341,7 @@ class CreatorBackend{
   }
   refresh(){
     this.worldBuilder.refresh();
+    this.actorEditor.refresh();
     this.uiEditor.refresh();
   }
   handleKeyDown(event){
@@ -1102,14 +1351,25 @@ class CreatorBackend{
       return true;
     }
     if(this.mode==='world') return this.worldBuilder.handleKeyDown(event);
+    if(this.mode==='actor') return this.actorEditor.handleKeyDown(event);
     return this.uiEditor.handleKeyDown(event);
+  }
+  canUpdatePlayer(){
+    return this.active&&this.mode==='world'&&this.worldBuilder.canControlPlayer();
+  }
+  getDebugState(){
+    return {
+      mode:this.mode,
+      world:this.mode==='world'?this.worldBuilder.debugState():null,
+      actor:this.mode==='actor'?this.actorEditor.debugState():null
+    };
   }
   setStatus(text){
     if(this.status) this.status.textContent=text||'';
   }
   resetProject(){
     if(!confirm('要重設世界與介面模板資料嗎？')) return;
-    this.app.importProject({version:1,world:createDefaultWorld(),ui:createDefaultUI()});
+    this.app.importProject({version:1,world:createDefaultWorld(),ui:createDefaultUI(),actors:createDefaultActors()});
     this.setStatus('模板已重設');
   }
   openJsonModal({title,value='',applyLabel='複製',onApply=null}){
@@ -1160,6 +1420,326 @@ function downloadText(filename,text,type='text/plain;charset=utf-8'){
   setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
 
+class ActorEditor{
+  constructor(app,creator){
+    this.app=app;
+    this.creator=creator;
+    this.left=$('[data-actor-left]',creator.root);
+    this.right=$('[data-actor-right]',creator.root);
+    this.role='player';
+    this.selectedNPC=null;
+    this.pendingImport=null;
+    this.fileInput=$('#actor-file-input');
+    this.bind();
+  }
+  bind(){
+    this.left.addEventListener('click',event=>this.handleClick(event));
+    this.right.addEventListener('click',event=>this.handleClick(event));
+    this.left.addEventListener('input',event=>this.handleInput(event));
+    this.right.addEventListener('input',event=>this.handleInput(event));
+    this.fileInput.addEventListener('change',event=>this.handleActorFile(event));
+  }
+  enable(){
+    this.role=this.app.actors.data.selectedRole||'player';
+    this.selectedNPC=this.selectedNPC||this.app.actors.data.npcs[0]?.id||null;
+    this.refresh();
+  }
+  disable(){
+    this.pendingImport=null;
+  }
+  debugState(){
+    return {
+      role:this.role,
+      selectedNPC:this.selectedNPC,
+      playerModel:this.app.actors.getRole('player')?.model?.type,
+      npcModel:this.app.actors.getRole('npc')?.model?.type
+    };
+  }
+  refresh(){
+    if(!this.creator.active||this.creator.mode!=='actor') return;
+    this.renderLeft();
+    this.renderRight();
+    const role=this.roleData();
+    const model=ACTOR_MODEL_LABELS[role.model?.type]||role.model?.type||'基本模型';
+    this.creator.setStatus(`角色/NPC｜${ACTOR_ROLE_LABELS[this.role]||this.role}｜模型 ${model}｜NPC ${this.app.actors.data.npcs.length}`);
+  }
+  roleData(){
+    return this.app.actors.getRole(this.role);
+  }
+  selectedNPCData(){
+    return this.app.actors.data.npcs.find(npc=>npc.id===this.selectedNPC)||null;
+  }
+  renderLeft(){
+    const npcs=this.app.actors.data.npcs;
+    this.left.innerHTML=`
+      <div class="creator-section">
+        <h2>角色類型</h2>
+        <div class="creator-grid two">
+          ${['player','npc'].map(role=>`<button type="button" data-actor-role="${role}" class="${this.role===role?'is-active':''}">${ACTOR_ROLE_LABELS[role]}</button>`).join('')}
+        </div>
+      </div>
+      <div class="creator-section">
+        <h2>模型匯入</h2>
+        <div class="creator-grid two">
+          <button type="button" data-actor-action="import-png">匯入 PNG 序列</button>
+          <button type="button" data-actor-action="import-gltf">匯入 3D 模型</button>
+          <button type="button" data-actor-action="reset-model">基本模型</button>
+          <button type="button" data-actor-action="save">儲存角色</button>
+        </div>
+      </div>
+      <div class="creator-section">
+        <h2>資料</h2>
+        <div class="creator-grid two">
+          <button type="button" data-actor-action="export-actors">匯出角色</button>
+          <button type="button" data-actor-action="import-actors">匯入角色</button>
+        </div>
+      </div>
+      <div class="creator-section">
+        <h2>NPC 實例</h2>
+        <div class="creator-grid two">
+          <button type="button" data-actor-action="add-npc">新增 NPC</button>
+          <button type="button" data-actor-action="remove-npc" class="danger">刪除 NPC</button>
+        </div>
+        <div class="creator-list">
+          ${npcs.map(npc=>`
+            <div class="creator-row ${npc.id===this.selectedNPC?'is-selected':''}" data-actor-npc="${npc.id}">
+              <div>
+                <div class="row-title">${escapeHTML(npc.name)}</div>
+                <div class="row-meta">${npc.enabled===false?'停用':'啟用'}｜${escapeHTML(ACTOR_ROLE_LABELS[npc.actorId]||npc.actorId)}</div>
+              </div>
+              <span class="row-meta">R ${npc.radius}</span>
+            </div>`).join('')||'<p class="muted">尚無 NPC 實例</p>'}
+        </div>
+      </div>`;
+  }
+  renderRight(){
+    const role=this.roleData();
+    const model=role.model||{};
+    const npc=this.selectedNPCData();
+    const sequenceCount=model.sequence?.length||0;
+    this.right.innerHTML=`
+      <div class="creator-section">
+        <h2>${escapeHTML(ACTOR_ROLE_LABELS[this.role]||this.role)}</h2>
+        <label>名稱<input data-actor-role-field="name" value="${escapeHTML(role.name)}"></label>
+        <div class="creator-grid two">
+          <label>模型類型<select data-actor-model-field="type">
+            ${['primitive','spriteSequence','gltf'].map(type=>`<option value="${type}" ${model.type===type?'selected':''}>${ACTOR_MODEL_LABELS[type]}</option>`).join('')}
+          </select></label>
+          <label>模型縮放<input data-actor-model-field="scale" type="number" min="0.05" step="0.05" value="${model.scale??1}"></label>
+          <label>序列 FPS<input data-actor-model-field="frameRate" type="number" min="1" step="1" value="${model.frameRate??8}"></label>
+          <label class="inline-check"><input data-actor-model-field="billboard" type="checkbox" ${model.billboard!==false?'checked':''}> 2D 面向鏡頭</label>
+        </div>
+        <p class="muted">目前素材：${escapeHTML(model.fileName||'基本模型')}｜PNG 幀數 ${sequenceCount}</p>
+      </div>
+      <div class="creator-section">
+        <h2>動作序列</h2>
+        ${role.actions.map(action=>`
+          <div class="creator-row">
+            <div class="row-title">${escapeHTML(action.name)}</div>
+            <div class="creator-grid four">
+              <label>名稱<input data-actor-action-id="${action.id}" data-actor-action-field="name" value="${escapeHTML(action.name)}"></label>
+              <label>起始<input data-actor-action-id="${action.id}" data-actor-action-field="from" type="number" min="0" step="1" value="${action.frames?.from??0}"></label>
+              <label>結束<input data-actor-action-id="${action.id}" data-actor-action-field="to" type="number" min="0" step="1" value="${action.frames?.to??0}"></label>
+              <label>FPS<input data-actor-action-id="${action.id}" data-actor-action-field="fps" type="number" min="1" step="1" value="${action.fps??8}"></label>
+            </div>
+          </div>`).join('')}
+      </div>
+      <div class="creator-section">
+        <h2>互動</h2>
+        <label>互動訊息<input data-actor-interaction-field="message" value="${escapeHTML(role.interaction?.message||'')}"></label>
+        <div class="creator-grid two">
+          <label>互動方式<select data-actor-interaction-field="onInteract">
+            ${['message','score','damage'].map(type=>`<option value="${type}" ${role.interaction?.onInteract===type?'selected':''}>${type==='message'?'顯示訊息':type==='score'?'增加分數':'造成傷害'}</option>`).join('')}
+          </select></label>
+          <label>關係值<input data-actor-interaction-field="affinity" type="number" step="1" value="${role.interaction?.affinity??0}"></label>
+        </div>
+      </div>
+      ${this.role==='npc'?this.renderNPCPanel(npc):''}`;
+  }
+  renderNPCPanel(npc){
+    if(!npc){
+      return `
+        <div class="creator-section">
+          <h2>NPC 實例</h2>
+          <p class="muted">請新增或選取一個 NPC 實例。</p>
+        </div>`;
+    }
+    return `
+      <div class="creator-section">
+        <h2>NPC 實例</h2>
+        <label>名稱<input data-actor-npc-field="name" value="${escapeHTML(npc.name)}"></label>
+        <div class="creator-grid three">
+          ${axisActorInputs('position',npc.position,'位置')}
+        </div>
+        <div class="creator-grid three">
+          ${axisActorInputs('rotation',npc.rotation,'旋轉')}
+        </div>
+        <div class="creator-grid two">
+          <label>互動半徑<input data-actor-npc-field="radius" type="number" min="0.1" step="0.05" value="${npc.radius??0.75}"></label>
+          <label class="inline-check"><input data-actor-npc-field="enabled" type="checkbox" ${npc.enabled!==false?'checked':''}> 啟用</label>
+        </div>
+      </div>`;
+  }
+  handleClick(event){
+    const role=event.target.closest('[data-actor-role]')?.dataset.actorRole;
+    if(role){
+      this.role=role;
+      this.app.actors.data.selectedRole=role;
+      this.app.actors.saveLocal();
+      this.refresh();
+      return;
+    }
+    const npcId=event.target.closest('[data-actor-npc]')?.dataset.actorNpc;
+    if(npcId){
+      this.selectedNPC=npcId;
+      this.role='npc';
+      this.app.actors.data.selectedRole='npc';
+      this.refresh();
+      return;
+    }
+    const action=event.target.closest('[data-actor-action]')?.dataset.actorAction;
+    if(!action) return;
+    if(action==='import-png') this.requestImport('png');
+    if(action==='import-gltf') this.requestImport('gltf');
+    if(action==='reset-model') this.setRoleModel({type:'primitive',src:'',fileName:'',sequence:[]});
+    if(action==='save'){this.commitActors();this.creator.setStatus('角色資料已儲存');}
+    if(action==='add-npc'){
+      const npc=this.app.actors.addNPCNearPlayer();
+      this.selectedNPC=npc.id;
+      this.role='npc';
+      this.app.actors.data.selectedRole='npc';
+      this.refresh();
+    }
+    if(action==='remove-npc'&&this.selectedNPC){
+      this.app.actors.removeNPC(this.selectedNPC);
+      this.selectedNPC=this.app.actors.data.npcs[0]?.id||null;
+      this.refresh();
+    }
+    if(action==='export-actors') this.creator.openJsonModal({title:'匯出角色 JSON',value:JSON.stringify(this.app.actors.serialize(),null,2)});
+    if(action==='import-actors') this.creator.openJsonModal({title:'匯入角色 JSON',value:'',applyLabel:'匯入',onApply:text=>{
+      this.app.actors.load(JSON.parse(text));
+      this.app.actors.saveLocal();
+      this.role=this.app.actors.data.selectedRole||'player';
+      this.selectedNPC=this.app.actors.data.npcs[0]?.id||null;
+      this.refresh();
+    }});
+  }
+  handleInput(event){
+    const role=this.roleData();
+    const roleField=event.target.dataset.actorRoleField;
+    const modelField=event.target.dataset.actorModelField;
+    const interactionField=event.target.dataset.actorInteractionField;
+    const actionId=event.target.dataset.actorActionId;
+    const actionField=event.target.dataset.actorActionField;
+    const npcField=event.target.dataset.actorNpcField;
+    if(roleField){
+      role[roleField]=this.inputValue(event.target,role[roleField]);
+      this.commitActors(false);
+      this.refresh();
+      return;
+    }
+    if(modelField){
+      role.model=role.model||{};
+      role.model[modelField]=this.inputValue(event.target,role.model[modelField]);
+      this.commitActors(false);
+      this.refresh();
+      return;
+    }
+    if(interactionField){
+      role.interaction=role.interaction||{};
+      role.interaction[interactionField]=this.inputValue(event.target,role.interaction[interactionField]);
+      this.commitActors(false);
+      this.refresh();
+      return;
+    }
+    if(actionId&&actionField){
+      const action=role.actions.find(item=>item.id===actionId);
+      if(action){
+        if(actionField==='from'||actionField==='to'){
+          action.frames=action.frames||{from:0,to:0};
+          action.frames[actionField]=Math.max(0,Math.round(toNumber(event.target.value,0)));
+        }else{
+          action[actionField]=this.inputValue(event.target,action[actionField]);
+        }
+        this.commitActors(false);
+        this.refresh();
+      }
+      return;
+    }
+    if(npcField){
+      const npc=this.selectedNPCData();
+      if(!npc) return;
+      setPath(npc,npcField,this.inputValue(event.target,getPath(npc,npcField)));
+      this.app.actors.rebuildNPCs();
+      this.app.actors.saveLocal();
+      this.refresh();
+    }
+  }
+  inputValue(input,fallback){
+    if(input.type==='checkbox') return input.checked;
+    if(input.type==='number') return toNumber(input.value,fallback);
+    return input.value;
+  }
+  commitActors(refresh=true){
+    this.app.actors.data.selectedRole=this.role;
+    this.app.actors.rebuildPlayer();
+    this.app.actors.rebuildNPCs();
+    this.app.actors.saveLocal();
+    if(refresh) this.refresh();
+  }
+  requestImport(kind){
+    this.pendingImport={kind,role:this.role};
+    this.fileInput.multiple=kind==='png';
+    this.fileInput.accept=kind==='png'?'image/png,.png':'.glb,.gltf,model/gltf+json,model/gltf-binary';
+    this.fileInput.click();
+  }
+  async handleActorFile(event){
+    const files=Array.from(event.target.files||[]);
+    event.target.value='';
+    const pending=this.pendingImport;
+    this.pendingImport=null;
+    if(!pending||!files.length) return;
+    const previousRole=this.role;
+    this.role=pending.role;
+    if(pending.kind==='png'){
+      const pngs=files.filter(file=>/\.png$/i.test(file.name)||file.type==='image/png').sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true}));
+      const sequence=await Promise.all(pngs.map(file=>this.readFile(file)));
+      if(sequence.length){
+        this.setRoleModel({type:'spriteSequence',src:sequence[0],sequence,fileName:`${sequence.length} 張 PNG`,billboard:true});
+      }
+    }else{
+      const file=files[0];
+      const src=await this.readFile(file);
+      this.setRoleModel({type:'gltf',src,fileName:file.name,sequence:[]});
+    }
+    this.role=previousRole;
+    this.refresh();
+  }
+  readFile(file){
+    return new Promise((resolve,reject)=>{
+      const reader=new FileReader();
+      reader.onload=()=>resolve(String(reader.result||''));
+      reader.onerror=()=>reject(reader.error);
+      reader.readAsDataURL(file);
+    });
+  }
+  setRoleModel(model){
+    const role=this.roleData();
+    role.model={...role.model,...model};
+    this.commitActors();
+  }
+  handleKeyDown(event){
+    if(isEditable(document.activeElement)) return false;
+    if((event.ctrlKey||event.metaKey)&&event.code==='KeyS'){
+      event.preventDefault();
+      this.commitActors();
+      this.creator.setStatus('角色資料已儲存');
+      return true;
+    }
+    return false;
+  }
+}
+
 class WorldBuilder{
   constructor(app,creator){
     this.app=app;
@@ -1167,7 +1747,12 @@ class WorldBuilder{
     this.left=$('[data-world-left]',creator.root);
     this.right=$('[data-world-right]',creator.root);
     this.selectedId=null;
-    this.tool='select';
+    this.tool='block';
+    this.controlTarget='player';
+    this.objectDragMode='scale';
+    this.toolkitOpen=false;
+    this.toolkit=null;
+    this.hint=null;
     this.gridHelper=null;
     this.selectionHelper=null;
     this.raycaster=new THREE.Raycaster();
@@ -1175,6 +1760,7 @@ class WorldBuilder{
     this.groundPlane=new THREE.Plane(new THREE.Vector3(0,1,0),0);
     this.drag=null;
     this.textureTarget=null;
+    this.toolKeys=Object.keys(WORLD_TYPE_DEFS);
     this.history=new HistoryStack(()=>this.app.world.serialize(),snapshot=>{
       this.app.world.load(snapshot);
       this.app.world.saveLocal();
@@ -1186,14 +1772,19 @@ class WorldBuilder{
   }
   enable(){
     this.ensureGrid();
-    this.gridHelper.visible=true;
     this.ensureSelectionHelper();
+    this.ensureOverlays();
+    this.gridHelper.visible=true;
+    this.controlTarget=this.selectedId?'object':'player';
     this.refresh();
   }
   disable(){
     if(this.gridHelper) this.gridHelper.visible=false;
     if(this.selectionHelper) this.selectionHelper.visible=false;
+    if(this.toolkit) this.toolkit.hidden=true;
+    if(this.hint) this.hint.hidden=true;
     this.drag=null;
+    this.toolkitOpen=false;
   }
   ensureGrid(){
     if(this.gridHelper) return;
@@ -1208,6 +1799,25 @@ class WorldBuilder{
     this.selectionHelper=new THREE.BoxHelper(new THREE.Object3D(),0xf6c453);
     this.app.scene.add(this.selectionHelper);
   }
+  ensureOverlays(){
+    if(this.toolkit&&this.hint) return;
+    this.toolkit=document.createElement('div');
+    this.toolkit.className='world-toolkit';
+    this.toolkit.hidden=true;
+    this.toolkit.addEventListener('pointerdown',event=>event.stopPropagation());
+    this.toolkit.addEventListener('click',event=>{
+      const tool=event.target.closest('[data-world-toolkit]')?.dataset.worldToolkit;
+      if(!tool) return;
+      this.setTool(tool);
+      this.toolkitOpen=false;
+      this.refresh();
+    });
+    this.hint=document.createElement('div');
+    this.hint.className='world-hint';
+    this.hint.hidden=true;
+    document.body.appendChild(this.toolkit);
+    document.body.appendChild(this.hint);
+  }
   bindCanvas(){
     const canvas=this.app.canvas;
     canvas.addEventListener('pointerdown',event=>this.onPointerDown(event),true);
@@ -1221,29 +1831,94 @@ class WorldBuilder{
     this.right.addEventListener('input',event=>this.handleInput(event));
     $('#asset-file-input').addEventListener('change',event=>this.handleAssetFile(event));
   }
+  canControlPlayer(){
+    return this.controlTarget==='player'&&!this.drag&&!isEditable(document.activeElement);
+  }
+  debugState(){
+    return {
+      tool:this.tool,
+      controlTarget:this.controlTarget,
+      selectedId:this.selectedId,
+      dragMode:this.objectDragMode,
+      toolkitOpen:this.toolkitOpen
+    };
+  }
   refresh(){
     if(!this.creator.active||this.creator.mode!=='world') return;
     this.renderLeft();
     this.renderRight();
+    this.renderToolkit();
     this.updateSelectionHelper();
+    this.updateHint();
     const count=this.app.world.data.objects.length;
     const grid=this.app.world.data.settings.gridSize;
-    this.creator.setStatus(`空間編輯｜工具 ${this.toolLabel(this.tool)}｜物件 ${count}｜格線 ${grid}`);
+    const target=this.controlTarget==='player'?'角色走位':'物件調整';
+    this.creator.setStatus(`空間編輯｜${target}｜工具 ${this.toolLabel(this.tool)}｜物件 ${count}｜格線 ${grid}`);
   }
   toolLabel(tool){
-    return tool==='select'?'選取':(WORLD_TYPE_DEFS[tool]?.label||tool);
+    return tool==='select'?'選取/拖拉':(WORLD_TYPE_DEFS[tool]?.label||tool);
+  }
+  setTool(tool){
+    this.tool=WORLD_TYPE_DEFS[tool]||tool==='select'?tool:'block';
+    if(tool!=='select') this.setControlTarget('player',{refresh:false});
+  }
+  setControlTarget(target,{refresh=true}={}){
+    this.controlTarget=target==='object'&&this.selectedId?'object':'player';
+    if(this.controlTarget==='player') this.selectedId=null;
+    this.updateSelectionHelper();
+    if(refresh) this.refresh();
+  }
+  setDragMode(mode){
+    this.objectDragMode=mode==='move'?'move':'scale';
+    this.refresh();
+  }
+  renderToolkit(){
+    if(!this.toolkit) return;
+    const entries=[['select',{label:'選取/拖拉'}],...Object.entries(WORLD_TYPE_DEFS)];
+    this.toolkit.innerHTML=entries.map(([type,def],index)=>`
+      <button type="button" class="${type===this.tool?'is-active':''}" data-world-toolkit="${type}">
+        ${index<10?`${index===0?'0':index}. `:''}${escapeHTML(def.label)}
+      </button>`).join('');
+    this.toolkit.hidden=!this.toolkitOpen||!this.creator.active||this.creator.mode!=='world';
+  }
+  updateHint(){
+    if(!this.hint) return;
+    if(!this.creator.active||this.creator.mode!=='world'){
+      this.hint.hidden=true;
+      return;
+    }
+    const object=this.app.world.getObject(this.selectedId);
+    this.hint.hidden=false;
+    if(object&&this.controlTarget==='object'){
+      const mode=this.objectDragMode==='scale'?'尺寸':'位置';
+      this.hint.textContent=`已選取「${object.name}」：拖曳物件調整${mode}。G 切到移動、V 切到尺寸、Delete 刪除，點角色或空白處回到角色走位。`;
+    }else{
+      this.hint.textContent=`角色走位建造：WASD / 方向鍵移動，滑鼠拖曳視角，B 或 Tab 開工具包，E 在角色前方安裝「${this.toolLabel(this.tool)}」。`;
+    }
   }
   renderLeft(){
+    const current=this.toolLabel(this.tool);
     this.left.innerHTML=`
       <div class="creator-section">
-        <h2>工具</h2>
+        <h2>建造工具包</h2>
         <div class="creator-grid three">
-          <button type="button" data-world-tool="select">選取</button>
+          <button type="button" data-world-action="toggle-toolkit">${this.toolkitOpen?'收起工具包':'開啟工具包'}</button>
+          <button type="button" data-world-action="place-current">安裝目前工具</button>
+          <button type="button" data-world-action="select-player">回到角色</button>
           <button type="button" data-world-action="undo">復原</button>
           <button type="button" data-world-action="redo">重做</button>
+          <button type="button" data-world-tool="select">選取/拖拉</button>
         </div>
+        <p class="muted">目前工具：${escapeHTML(current)}。按 B 或 Tab 可叫出底部工具包，按 E 直接安裝在角色前方。</p>
         <div class="creator-palette">
           ${Object.entries(WORLD_TYPE_DEFS).map(([type,def])=>`<button type="button" data-world-tool="${type}">${escapeHTML(def.label)}</button>`).join('')}
+        </div>
+      </div>
+      <div class="creator-section">
+        <h2>拖拉模式</h2>
+        <div class="creator-grid two">
+          <button type="button" data-world-action="drag-scale" class="${this.objectDragMode==='scale'?'is-active':''}">尺寸拖拉</button>
+          <button type="button" data-world-action="drag-move" class="${this.objectDragMode==='move'?'is-active':''}">移動拖拉</button>
         </div>
       </div>
       <div class="creator-section">
@@ -1273,14 +1948,15 @@ class WorldBuilder{
     if(!object){
       this.right.innerHTML=`
         <div class="creator-section">
-          <h2>選取</h2>
+          <h2>角色走位建造</h2>
           <div class="creator-grid two">
-            <button type="button" data-world-action="add-at-player">放在玩家前方</button>
+            <button type="button" data-world-action="place-current">安裝目前工具</button>
+            <button type="button" data-world-action="toggle-toolkit">工具包</button>
             <button type="button" data-world-action="export-world">匯出世界</button>
             <button type="button" data-world-action="import-world">匯入世界</button>
             <button type="button" data-world-action="clear-world" class="danger">清空世界</button>
           </div>
-          <p class="muted">請從場景或列表選取物件。</p>
+          <p class="muted">點選場景中的物件會暫停角色走位並進入物件調整；點角色或空白處回到角色控制。</p>
         </div>`;
       return;
     }
@@ -1290,13 +1966,20 @@ class WorldBuilder{
       <div class="creator-section">
         <h2>物件</h2>
         <div class="creator-grid two">
+          <button type="button" data-world-action="select-player">回到角色</button>
           <button type="button" data-world-action="duplicate">複製</button>
           <button type="button" data-world-action="delete" class="danger">刪除</button>
-          <button type="button" data-world-action="export-world">匯出世界</button>
-          <button type="button" data-world-action="import-world">匯入世界</button>
+          <button type="button" data-world-action="place-current">安裝目前工具</button>
         </div>
         <label>名稱<input data-world-field="name" value="${escapeHTML(object.name)}"></label>
         <label>類型<select data-world-field="type">${Object.keys(WORLD_TYPE_DEFS).map(type=>`<option value="${type}" ${object.type===type?'selected':''}>${WORLD_TYPE_DEFS[type].label}</option>`).join('')}</select></label>
+      </div>
+      <div class="creator-section">
+        <h2>拖拉控制</h2>
+        <div class="creator-grid two">
+          <button type="button" data-world-action="drag-scale" class="${this.objectDragMode==='scale'?'is-active':''}">拖拉尺寸</button>
+          <button type="button" data-world-action="drag-move" class="${this.objectDragMode==='move'?'is-active':''}">拖拉位置</button>
+        </div>
       </div>
       <div class="creator-section">
         <h2>變換</h2>
@@ -1350,23 +2033,31 @@ class WorldBuilder{
           <label>訊息<input data-world-field="logic.message" value="${escapeHTML(object.logic.message||'')}"></label>
         </div>
         <label>文字<textarea data-world-field="logic.text">${escapeHTML(object.logic.text||'')}</textarea></label>
+        <div class="creator-grid two">
+          <button type="button" data-world-action="export-world">匯出世界</button>
+          <button type="button" data-world-action="import-world">匯入世界</button>
+        </div>
       </div>`;
   }
   handleClick(event){
     const tool=event.target.closest('[data-world-tool]')?.dataset.worldTool;
-    if(tool){this.tool=tool;this.refresh();return;}
+    if(tool){this.setTool(tool);this.refresh();return;}
     const select=event.target.closest('[data-world-select]')?.dataset.worldSelect;
     if(select){this.select(select);return;}
     const action=event.target.closest('[data-world-action]')?.dataset.worldAction;
     if(!action) return;
+    if(action==='toggle-toolkit'){this.toggleToolkit();return;}
+    if(action==='select-player'){this.setControlTarget('player');return;}
+    if(action==='place-current'){this.placeCurrentTool();return;}
+    if(action==='drag-scale'){this.setDragMode('scale');return;}
+    if(action==='drag-move'){this.setDragMode('move');return;}
     if(action==='undo'){this.history.undo();return;}
     if(action==='redo'){this.history.redo();return;}
-    if(action==='add-at-player') this.addObjectAt(this.tool==='select'?'block':this.tool,this.addPositionNearPlayer());
     if(action==='duplicate') this.duplicate();
     if(action==='delete') this.deleteSelected();
     if(action==='clear-world') this.clearWorld();
     if(action==='export-world') this.creator.openJsonModal({title:'匯出世界 JSON',value:JSON.stringify(this.app.world.serialize(),null,2)});
-    if(action==='import-world') this.creator.openJsonModal({title:'匯入世界 JSON',value:'',applyLabel:'匯入',onApply:text=>{this.history.capture();this.app.world.load(JSON.parse(text));this.app.world.saveLocal();this.selectedId=null;this.refresh();}});
+    if(action==='import-world') this.creator.openJsonModal({title:'匯入世界 JSON',value:'',applyLabel:'匯入',onApply:text=>{this.history.capture();this.app.world.load(JSON.parse(text));this.app.world.saveLocal();this.selectedId=null;this.setControlTarget('player',{refresh:false});this.refresh();}});
     if(action==='upload-texture') this.requestTexture({kind:'main'});
     if(action==='clear-texture') this.setTexture('');
     if(action==='upload-face-texture') this.requestTexture({kind:'face'});
@@ -1448,8 +2139,18 @@ class WorldBuilder{
   }
   select(id){
     this.selectedId=id;
+    this.controlTarget=id?'object':'player';
     this.updateSelectionHelper();
     this.refresh();
+  }
+  toggleToolkit(force=null){
+    this.toolkitOpen=force===null?!this.toolkitOpen:!!force;
+    this.renderToolkit();
+    this.updateHint();
+  }
+  placeCurrentTool(position=null){
+    const type=this.tool==='select'?'block':this.tool;
+    this.addObjectAt(type,position||this.addPositionNearPlayer());
   }
   addObjectAt(type,position){
     const def=WORLD_TYPE_DEFS[type]||WORLD_TYPE_DEFS.block;
@@ -1458,14 +2159,22 @@ class WorldBuilder{
     const useSnap=this.app.world.data.settings.snap;
     object.transform.position.x=useSnap?snap(position.x,grid):position.x;
     object.transform.position.z=useSnap?snap(position.z,grid):position.z;
-    object.transform.position.y=def.size.y*.5;
+    object.transform.position.y=position.y!==undefined?Math.max(def.size.y*.5,position.y):def.size.y*.5;
     this.history.capture();
     this.app.world.addObject(object);
     this.select(object.id);
   }
   addPositionNearPlayer(){
     const forward=this.app.getCameraForward();
-    return this.app.player.position.clone().addScaledVector(forward,2);
+    const right=this.app.getCameraRight(forward);
+    const base=this.app.player.position.clone().addScaledVector(forward,2.2);
+    if(this.app.world.data.settings.snap){
+      const grid=this.app.world.data.settings.gridSize||.5;
+      base.x=snap(base.x,grid);
+      base.z=snap(base.z,grid);
+    }
+    base.y=0;
+    return base.addScaledVector(right,0);
   }
   duplicate(){
     if(!this.selectedId) return;
@@ -1478,14 +2187,14 @@ class WorldBuilder{
     this.history.capture();
     this.app.world.removeObject(this.selectedId);
     this.selectedId=null;
-    this.refresh();
+    this.setControlTarget('player');
   }
   clearWorld(){
     if(!confirm('要清空所有世界物件嗎？')) return;
     this.history.capture();
     this.app.world.clear();
     this.selectedId=null;
-    this.refresh();
+    this.setControlTarget('player');
   }
   handleKeyDown(event){
     if(isEditable(document.activeElement)) return false;
@@ -1493,9 +2202,19 @@ class WorldBuilder{
     if((event.ctrlKey||event.metaKey)&&(event.code==='KeyY'||(event.shiftKey&&event.code==='KeyZ'))){event.preventDefault();this.history.redo();return true;}
     if((event.ctrlKey||event.metaKey)&&event.code==='KeyD'){event.preventDefault();this.duplicate();return true;}
     if((event.ctrlKey||event.metaKey)&&event.code==='KeyS'){event.preventDefault();this.app.saveProject();this.creator.setStatus('專案已儲存');return true;}
-    if(event.code==='Delete'||event.code==='Backspace'){event.preventDefault();this.deleteSelected();return true;}
+    if(event.code==='Tab'||event.code==='KeyB'){event.preventDefault();this.toggleToolkit();return true;}
+    if(event.code==='KeyE'){event.preventDefault();this.placeCurrentTool();return true;}
+    if(event.code==='KeyG'){event.preventDefault();this.setDragMode('move');return true;}
+    if(event.code==='KeyV'){event.preventDefault();this.setDragMode('scale');return true;}
+    if(event.code==='Escape'&&this.toolkitOpen){event.preventDefault();this.toggleToolkit(false);return true;}
+    if(/^Digit[0-9]$/.test(event.code)){
+      const index=Number(event.code.replace('Digit',''));
+      const entries=['select',...this.toolKeys];
+      if(entries[index]){event.preventDefault();this.setTool(entries[index]);this.toolkitOpen=false;this.refresh();return true;}
+    }
+    if((event.code==='Delete'||event.code==='Backspace')&&this.selectedId){event.preventDefault();this.deleteSelected();return true;}
     const object=this.app.world.getObject(this.selectedId);
-    if(object&&['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(event.code)){
+    if(object&&this.controlTarget==='object'&&['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(event.code)){
       event.preventDefault();
       this.history.capture();
       const step=(event.shiftKey?4:1)*(this.app.world.data.settings.gridSize||.5);
@@ -1508,7 +2227,8 @@ class WorldBuilder{
       this.refresh();
       return true;
     }
-    return true;
+    if(['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(event.code)&&this.canControlPlayer()) return false;
+    return false;
   }
   updatePointer(event){
     const rect=this.app.canvas.getBoundingClientRect();
@@ -1522,48 +2242,88 @@ class WorldBuilder{
     if(this.raycaster.ray.intersectPlane(this.groundPlane,hit)) return hit;
     return null;
   }
+  pickPlayer(){
+    const player=this.app.player.mesh;
+    const hits=this.raycaster.intersectObject(player,true);
+    return hits.length>0;
+  }
   onPointerDown(event){
     if(!this.creator.active||this.creator.mode!=='world'||event.target!==this.app.canvas) return;
-    event.preventDefault();
-    event.stopPropagation();
     this.updatePointer(event);
+    if(this.pickPlayer()){
+      event.preventDefault();
+      event.stopPropagation();
+      this.setControlTarget('player');
+      return;
+    }
     const picked=this.app.world.pick(this.raycaster);
     if(picked){
+      if(picked.object?.type==='floor'){
+        this.setControlTarget('player');
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
       this.select(picked.id);
-      if(this.tool==='select'){
-        const ground=this.pointerGround(event);
-        const object=this.app.world.getObject(this.selectedId);
-        if(ground&&object){
-          this.history.capture();
-          this.drag={id:this.selectedId,offset:{x:object.transform.position.x-ground.x,z:object.transform.position.z-ground.z}};
-        }
+      const object=this.app.world.getObject(this.selectedId);
+      const ground=this.pointerGround(event);
+      if(object){
+        this.history.capture();
+        this.drag={
+          id:this.selectedId,
+          mode:this.objectDragMode,
+          startX:event.clientX,
+          startY:event.clientY,
+          startSize:deepClone(object.size),
+          startScale:deepClone(object.transform.scale),
+          startPosition:deepClone(object.transform.position),
+          offset:ground?{x:object.transform.position.x-ground.x,z:object.transform.position.z-ground.z}:null
+        };
       }
       return;
     }
     const ground=this.pointerGround(event);
     if(!ground) return;
-    if(this.tool!=='select') this.addObjectAt(this.tool,ground);
-    else this.select(null);
+    this.setControlTarget('player');
   }
   onPointerMove(event){
     if(!this.drag||!this.creator.active||this.creator.mode!=='world') return;
     event.preventDefault();
+    event.stopPropagation();
     const object=this.app.world.getObject(this.drag.id);
-    const ground=this.pointerGround(event);
-    if(!object||!ground) return;
-    const grid=this.app.world.data.settings.gridSize||.5;
-    const useSnap=this.app.world.data.settings.snap;
-    object.transform.position.x=useSnap?snap(ground.x+this.drag.offset.x,grid):ground.x+this.drag.offset.x;
-    object.transform.position.z=useSnap?snap(ground.z+this.drag.offset.z,grid):ground.z+this.drag.offset.z;
+    if(!object) return;
+    if(this.drag.mode==='move'){
+      const ground=this.pointerGround(event);
+      if(!ground||!this.drag.offset) return;
+      const grid=this.app.world.data.settings.gridSize||.5;
+      const useSnap=this.app.world.data.settings.snap;
+      object.transform.position.x=useSnap?snap(ground.x+this.drag.offset.x,grid):ground.x+this.drag.offset.x;
+      object.transform.position.z=useSnap?snap(ground.z+this.drag.offset.z,grid):ground.z+this.drag.offset.z;
+    }else{
+      const dx=event.clientX-this.drag.startX;
+      const dy=event.clientY-this.drag.startY;
+      const grid=this.app.world.data.settings.gridSize||.5;
+      const widthDelta=dx*.015;
+      const heightDelta=-dy*.015;
+      object.size.x=Math.max(.05,this.drag.startSize.x+widthDelta);
+      object.size.z=Math.max(.05,this.drag.startSize.z+widthDelta);
+      object.size.y=Math.max(.05,this.drag.startSize.y+heightDelta);
+      if(this.app.world.data.settings.snap){
+        object.size.x=Math.max(grid,snap(object.size.x,grid));
+        object.size.y=Math.max(grid,snap(object.size.y,grid));
+        object.size.z=Math.max(grid,snap(object.size.z,grid));
+      }
+      object.transform.position.y=object.size.y*.5;
+    }
     this.app.world.rebuild();
     this.updateSelectionHelper();
+    this.updateHint();
   }
   onPointerUp(){
-    if(this.drag){
-      this.drag=null;
-      this.app.world.saveLocal();
-      this.refresh();
-    }
+    if(!this.drag) return;
+    this.drag=null;
+    this.app.world.saveLocal();
+    this.refresh();
   }
   updateSelectionHelper(){
     if(!this.selectionHelper) return;
@@ -1580,8 +2340,14 @@ class WorldBuilder{
 function axisInputs(path,value,label,min=null){
   return ['x','y','z'].map(axis=>`<label>${label} ${axis.toUpperCase()}<input data-world-field="${path}.${axis}" type="number" step="0.05" ${min!==null?`min="${min}"`:''} value="${value?.[axis]??0}"></label>`).join('');
 }
+function axisActorInputs(path,value,label){
+  return ['x','y','z'].map(axis=>`<label>${label} ${axis.toUpperCase()}<input data-actor-npc-field="${path}.${axis}" type="number" step="0.05" value="${value?.[axis]??0}"></label>`).join('');
+}
 function flagInput(name,checked){
   return `<label class="inline-check"><input data-world-flag="${name}" type="checkbox" ${checked?'checked':''}> ${FLAG_LABELS[name]||name}</label>`;
+}
+function getPath(object,path){
+  return path.split('.').reduce((target,key)=>target?.[key],object);
 }
 function setPath(object,path,value){
   const parts=path.split('.');

@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-<title>3D Web Game Creator Template</title>
-<meta name="description" content="A reusable single-file Three.js game template with a world builder and UI editor.">
+<title>3D 網頁遊戲創作模板</title>
+<meta name="description" content="可重複使用的單檔 Three.js 遊戲模板，內建空間編輯器與介面編輯器。">
 <style>
   :root{
     --panel:#111827;
@@ -129,32 +129,63 @@ const escapeHTML=value=>String(value??'').replace(/[&<>"]/g,ch=>({'&':'&amp;','<
 const toNumber=(value,fallback=0)=>Number.isFinite(Number(value))?Number(value):fallback;
 
 const WORLD_TYPE_DEFS={
-  block:{label:'Block',size:{x:1,y:1,z:1},color:'#d8b36a',flags:{collidable:true}},
-  floor:{label:'Floor',size:{x:6,y:.2,z:6},color:'#4f8f9f',flags:{collidable:true}},
-  wall:{label:'Wall',size:{x:4,y:2.5,z:.25},color:'#b7c0cb',flags:{collidable:true}},
-  platform:{label:'Platform',size:{x:3,y:.35,z:2},color:'#7aa56a',flags:{collidable:true}},
-  obstacle:{label:'Obstacle',size:{x:1.2,y:1.2,z:1.2},color:'#c77d5a',flags:{collidable:true}},
-  destructible:{label:'Destructible',size:{x:1,y:1,z:1},color:'#e55f6e',flags:{collidable:true,destructible:true}},
-  trigger:{label:'Trigger Zone',size:{x:2,y:.35,z:2},color:'#5eead4',flags:{trigger:true}},
-  spawn:{label:'Spawn Point',size:{x:.75,y:1.2,z:.75},color:'#8bd17c',flags:{spawn:true}},
-  textSign:{label:'Text Sign',size:{x:2.4,y:1.1,z:.12},color:'#f5efd6',flags:{interactive:true}},
-  interactive:{label:'Interactive',size:{x:1,y:1.3,z:1},color:'#b49cff',flags:{interactive:true,collidable:true}}
+  block:{label:'方塊',size:{x:1,y:1,z:1},color:'#d8b36a',flags:{collidable:true}},
+  floor:{label:'地板',size:{x:6,y:.2,z:6},color:'#4f8f9f',flags:{collidable:true}},
+  wall:{label:'牆面',size:{x:4,y:2.5,z:.25},color:'#b7c0cb',flags:{collidable:true}},
+  platform:{label:'平台',size:{x:3,y:.35,z:2},color:'#7aa56a',flags:{collidable:true}},
+  obstacle:{label:'障礙物',size:{x:1.2,y:1.2,z:1.2},color:'#c77d5a',flags:{collidable:true}},
+  destructible:{label:'可破壞物',size:{x:1,y:1,z:1},color:'#e55f6e',flags:{collidable:true,destructible:true}},
+  trigger:{label:'觸發區',size:{x:2,y:.35,z:2},color:'#5eead4',flags:{trigger:true}},
+  spawn:{label:'出生點',size:{x:.75,y:1.2,z:.75},color:'#8bd17c',flags:{spawn:true}},
+  textSign:{label:'文字牌',size:{x:2.4,y:1.1,z:.12},color:'#f5efd6',flags:{interactive:true}},
+  interactive:{label:'互動物件',size:{x:1,y:1.3,z:1},color:'#b49cff',flags:{interactive:true,collidable:true}}
 };
 const FACE_KEYS=['px','nx','py','ny','pz','nz'];
 const FACE_LABELS={px:'+X',nx:'-X',py:'+Y',ny:'-Y',pz:'+Z',nz:'-Z'};
 
 const UI_TYPE_DEFS={
-  text:{label:'Text',w:18,h:5,text:'Text'},
-  button:{label:'Button',w:13,h:6,text:'Button'},
-  statusBar:{label:'Status Bar',w:18,h:7,text:'Health'},
-  score:{label:'Score',w:16,h:5,text:'Score'},
-  image:{label:'Image',w:14,h:14,text:''},
-  gameFrame:{label:'Game Frame',w:76,h:74,text:''},
-  loadingPanel:{label:'Loading Panel',w:34,h:18,text:'Loading'},
-  resultPanel:{label:'Result Panel',w:36,h:20,text:'Result'},
-  controlButton:{label:'Control Button',w:12,h:10,text:'ACT'},
-  decorFrame:{label:'Decor Frame',w:24,h:14,text:''}
+  text:{label:'文字',w:18,h:5,text:'文字'},
+  button:{label:'按鈕',w:13,h:6,text:'按鈕'},
+  statusBar:{label:'狀態欄',w:18,h:7,text:'生命'},
+  score:{label:'計分欄',w:16,h:5,text:'分數'},
+  image:{label:'圖像',w:14,h:14,text:''},
+  gameFrame:{label:'遊戲框',w:76,h:74,text:''},
+  loadingPanel:{label:'讀取畫面',w:34,h:18,text:'讀取中'},
+  resultPanel:{label:'結算畫面',w:36,h:20,text:'結算'},
+  controlButton:{label:'操作按鈕',w:12,h:10,text:'互動'},
+  decorFrame:{label:'裝飾框',w:24,h:14,text:''}
 };
+const SCREEN_LABELS={game:'遊戲畫面',loading:'讀取畫面',results:'結算畫面'};
+const BIND_LABELS={none:'無',score:'分數',health:'生命',message:'訊息',action:'互動',restart:'重新開始'};
+const SKIN_MODE_LABELS={color:'純色',stretch:'拉伸貼圖',repeat:'重複平鋪',single:'單面貼圖',perFace:'每面貼圖'};
+const FLAG_LABELS={collidable:'可碰撞',destructible:'可破壞',interactive:'可互動',trigger:'觸發區',spawn:'出生點'};
+const LEGACY_LABELS={
+  Block:'方塊',Floor:'地板',Wall:'牆面',Platform:'平台',Obstacle:'障礙物',Destructible:'可破壞物',
+  'Trigger Zone':'觸發區','Spawn Point':'出生點','Text Sign':'文字牌',Interactive:'互動物件',
+  'Main Floor':'主地板','Player Spawn':'玩家出生點','Back Wall':'後牆','Side Wall':'側牆',
+  'Raised Platform':'抬高平台','Breakable Crate':'可破壞箱子','Message Trigger':'訊息觸發區',
+  'Player start':'玩家起點','Crate broken':'箱子已破壞','Trigger entered':'進入觸發區',
+  'NEW GAME':'新遊戲','Interactive sign':'可互動文字牌',
+  Text:'文字',Button:'按鈕','Status Bar':'狀態欄',Score:'分數',Health:'生命',Image:'圖像',
+  'Game Frame':'遊戲框','Loading Panel':'讀取面板','Results Panel':'結算面板','Result Panel':'結算面板',
+  Loading:'讀取中',Result:'結算','Control Button':'互動按鈕','Decor Frame':'裝飾框',ACT:'互動',
+  Message:'訊息'
+};
+function localizeLegacyString(value){
+  return typeof value==='string' ? (LEGACY_LABELS[value]||value) : value;
+}
+function localizeWorldObject(object){
+  object.name=localizeLegacyString(object.name);
+  object.logic=object.logic||{};
+  object.logic.message=localizeLegacyString(object.logic.message);
+  object.logic.text=localizeLegacyString(object.logic.text);
+  return object;
+}
+function localizeUIElement(element){
+  element.name=localizeLegacyString(element.name);
+  element.text=localizeLegacyString(element.text);
+  return element;
+}
 
 function makeWorldObject(type,patch={}){
   const def=WORLD_TYPE_DEFS[type]||WORLD_TYPE_DEFS.block;
@@ -176,7 +207,7 @@ function makeWorldObject(type,patch={}){
       skin:{mode:'color',src:'',repeat:{x:1,y:1},singleFace:'pz',faces:{}}
     },
     flags,
-    logic:{health:flags.destructible?3:1,message:def.label,text:type==='textSign'?'TEXT':''}
+    logic:{health:flags.destructible?3:1,message:def.label,text:type==='textSign'?'文字':''}
   };
   return mergeObject(object,patch);
 }
@@ -194,14 +225,14 @@ function mergeObject(base,patch){
 
 function createDefaultWorld(){
   const objects=[];
-  const floor=makeWorldObject('floor',{id:'floor_main',name:'Main Floor',size:{x:16,y:.2,z:16},transform:{position:{x:0,y:-.1,z:0},rotation:{x:0,y:0,z:0},scale:{x:1,y:1,z:1}}});
-  const spawnPoint=makeWorldObject('spawn',{id:'spawn_player',name:'Player Spawn',transform:{position:{x:0,y:.6,z:4},rotation:{x:0,y:0,z:0},scale:{x:1,y:1,z:1}},logic:{message:'Player start'}});
-  const wallA=makeWorldObject('wall',{id:'wall_back',name:'Back Wall',transform:{position:{x:0,y:1.25,z:-5},rotation:{x:0,y:0,z:0},scale:{x:1,y:1,z:1}}});
-  const wallB=makeWorldObject('wall',{id:'wall_left',name:'Side Wall',size:{x:.25,y:2.5,z:5},transform:{position:{x:-5,y:1.25,z:-1.5},rotation:{x:0,y:0,z:0},scale:{x:1,y:1,z:1}}});
-  const platform=makeWorldObject('platform',{id:'platform_sample',name:'Raised Platform',transform:{position:{x:3,y:.18,z:0},rotation:{x:0,y:0,z:0},scale:{x:1,y:1,z:1}}});
-  const crate=makeWorldObject('destructible',{id:'crate_sample',name:'Breakable Crate',transform:{position:{x:-2,y:.5,z:0},rotation:{x:0,y:0,z:0},scale:{x:1,y:1,z:1}},logic:{health:3,message:'Crate broken'}});
-  const trigger=makeWorldObject('trigger',{id:'trigger_sample',name:'Message Trigger',transform:{position:{x:0,y:.18,z:-2.4},rotation:{x:0,y:0,z:0},scale:{x:1,y:1,z:1}},logic:{message:'Trigger entered'}});
-  const sign=makeWorldObject('textSign',{id:'sign_sample',name:'Text Sign',transform:{position:{x:2.8,y:.9,z:-3.2},rotation:{x:0,y:0,z:0},scale:{x:1,y:1,z:1}},logic:{text:'NEW GAME',message:'Interactive sign'}});
+  const floor=makeWorldObject('floor',{id:'floor_main',name:'主地板',size:{x:16,y:.2,z:16},transform:{position:{x:0,y:-.1,z:0},rotation:{x:0,y:0,z:0},scale:{x:1,y:1,z:1}}});
+  const spawnPoint=makeWorldObject('spawn',{id:'spawn_player',name:'玩家出生點',transform:{position:{x:0,y:.6,z:4},rotation:{x:0,y:0,z:0},scale:{x:1,y:1,z:1}},logic:{message:'玩家起點'}});
+  const wallA=makeWorldObject('wall',{id:'wall_back',name:'後牆',transform:{position:{x:0,y:1.25,z:-5},rotation:{x:0,y:0,z:0},scale:{x:1,y:1,z:1}}});
+  const wallB=makeWorldObject('wall',{id:'wall_left',name:'側牆',size:{x:.25,y:2.5,z:5},transform:{position:{x:-5,y:1.25,z:-1.5},rotation:{x:0,y:0,z:0},scale:{x:1,y:1,z:1}}});
+  const platform=makeWorldObject('platform',{id:'platform_sample',name:'抬高平台',transform:{position:{x:3,y:.18,z:0},rotation:{x:0,y:0,z:0},scale:{x:1,y:1,z:1}}});
+  const crate=makeWorldObject('destructible',{id:'crate_sample',name:'可破壞箱子',transform:{position:{x:-2,y:.5,z:0},rotation:{x:0,y:0,z:0},scale:{x:1,y:1,z:1}},logic:{health:3,message:'箱子已破壞'}});
+  const trigger=makeWorldObject('trigger',{id:'trigger_sample',name:'訊息觸發區',transform:{position:{x:0,y:.18,z:-2.4},rotation:{x:0,y:0,z:0},scale:{x:1,y:1,z:1}},logic:{message:'進入觸發區'}});
+  const sign=makeWorldObject('textSign',{id:'sign_sample',name:'文字牌',transform:{position:{x:2.8,y:.9,z:-3.2},rotation:{x:0,y:0,z:0},scale:{x:1,y:1,z:1}},logic:{text:'新遊戲',message:'可互動文字牌'}});
   objects.push(floor,spawnPoint,wallA,wallB,platform,crate,trigger,sign);
   return {schema:'template.world',version:1,settings:{gridSize:.5,snap:true},objects};
 }
@@ -240,13 +271,13 @@ function createDefaultUI(){
     version:1,
     settings:{activeScreen:'game'},
     elements:[
-      makeUIElement('gameFrame',{id:'ui_frame',name:'Game Frame',x:6,y:6,w:88,h:88,z:1,bgColor:'rgba(0,0,0,0)',borderColor:'rgba(246,196,83,.42)',radius:8}),
-      makeUIElement('score',{id:'ui_score',name:'Score',x:3,y:3,w:15,h:5,z:20,text:'Score',fontSize:16,bgColor:'rgba(7,16,24,.72)',bind:'score'}),
-      makeUIElement('statusBar',{id:'ui_health',name:'Health Bar',x:3,y:9,w:18,h:7,z:20,text:'Health',fontSize:12,bgColor:'rgba(7,16,24,.72)',bind:'health'}),
-      makeUIElement('text',{id:'ui_message',name:'Message',x:50,y:84,w:34,h:6,z:20,text:'',fontSize:15,bgColor:'rgba(7,16,24,.72)',bind:'message'}),
-      makeUIElement('controlButton',{id:'ui_action',name:'Action Button',x:85,y:78,w:10,h:11,z:30,text:'ACT',fontSize:16,bgColor:'rgba(246,196,83,.86)',color:'#1c1504',bind:'action'}),
-      makeUIElement('loadingPanel',{id:'ui_loading',screen:'loading',name:'Loading Panel',x:32,y:40,w:36,h:18,z:20,text:'Loading',fontSize:24,bgColor:'rgba(17,24,39,.88)'}),
-      makeUIElement('resultPanel',{id:'ui_result',screen:'results',name:'Results Panel',x:31,y:38,w:38,h:24,z:20,text:'Result',fontSize:24,bgColor:'rgba(17,24,39,.88)'})
+      makeUIElement('gameFrame',{id:'ui_frame',name:'遊戲框',x:6,y:6,w:88,h:88,z:1,bgColor:'rgba(0,0,0,0)',borderColor:'rgba(246,196,83,.42)',radius:8}),
+      makeUIElement('score',{id:'ui_score',name:'分數',x:3,y:3,w:15,h:5,z:20,text:'分數',fontSize:16,bgColor:'rgba(7,16,24,.72)',bind:'score'}),
+      makeUIElement('statusBar',{id:'ui_health',name:'生命欄',x:3,y:9,w:18,h:7,z:20,text:'生命',fontSize:12,bgColor:'rgba(7,16,24,.72)',bind:'health'}),
+      makeUIElement('text',{id:'ui_message',name:'訊息',x:50,y:84,w:34,h:6,z:20,text:'',fontSize:15,bgColor:'rgba(7,16,24,.72)',bind:'message'}),
+      makeUIElement('controlButton',{id:'ui_action',name:'互動按鈕',x:85,y:78,w:10,h:11,z:30,text:'互動',fontSize:16,bgColor:'rgba(246,196,83,.86)',color:'#1c1504',bind:'action'}),
+      makeUIElement('loadingPanel',{id:'ui_loading',screen:'loading',name:'讀取面板',x:32,y:40,w:36,h:18,z:20,text:'讀取中',fontSize:24,bgColor:'rgba(17,24,39,.88)'}),
+      makeUIElement('resultPanel',{id:'ui_result',screen:'results',name:'結算面板',x:31,y:38,w:38,h:24,z:20,text:'結算',fontSize:24,bgColor:'rgba(17,24,39,.88)'})
     ]
   };
 }
@@ -271,7 +302,7 @@ function normalizeWorld(world){
     settings:{...fallback.settings,...world.settings},
     objects:objects.map(raw=>{
       const type=WORLD_TYPE_DEFS[raw.type]?raw.type:'block';
-      return makeWorldObject(type,raw);
+      return localizeWorldObject(makeWorldObject(type,raw));
     })
   };
 }
@@ -286,7 +317,7 @@ function normalizeUI(ui){
     settings:{...fallback.settings,...ui.settings},
     elements:elements.map(raw=>{
       const type=UI_TYPE_DEFS[raw.type]?raw.type:'text';
-      return makeUIElement(type,raw);
+      return localizeUIElement(makeUIElement(type,raw));
     })
   };
 }
@@ -416,7 +447,7 @@ class WorldRuntime{
     if(!source) return null;
     const copy=deepClone(source);
     copy.id=uid('wo');
-    copy.name=`${source.name} Copy`;
+    copy.name=`${source.name} 複本`;
     copy.transform.position.x+=this.data.settings.gridSize||.5;
     copy.transform.position.z+=this.data.settings.gridSize||.5;
     this.addObject(copy);
@@ -508,7 +539,7 @@ class WorldRuntime{
     }else{
       geometry=new THREE.BoxGeometry(size.x,size.y,size.z);
       material=object.type==='textSign'
-        ? new THREE.MeshBasicMaterial({map:this.textureBank.textTexture(object.logic.text||object.name||'TEXT'),color:'#ffffff'})
+        ? new THREE.MeshBasicMaterial({map:this.textureBank.textTexture(object.logic.text||object.name||'文字'),color:'#ffffff'})
         : this.createBoxMaterials(object,size);
     }
     const mesh=new THREE.Mesh(geometry,material);
@@ -578,7 +609,7 @@ class WorldRuntime{
     for(const trigger of this.triggers){
       const box=new THREE.Box3().setFromObject(trigger.root);
       const inside=playerBox.intersectsBox(box);
-      if(inside&&!trigger.inside) this.app.showMessage(trigger.object.logic.message||trigger.object.name||'Trigger');
+      if(inside&&!trigger.inside) this.app.showMessage(trigger.object.logic.message||trigger.object.name||'觸發區');
       trigger.inside=inside;
     }
   }
@@ -594,7 +625,7 @@ class WorldRuntime{
       if(dist<1.9&&dist<bestDist){best={object,root};bestDist=dist;}
     }
     if(!best){
-      this.app.showMessage('No target');
+      this.app.showMessage('附近沒有可互動目標');
       return;
     }
     const {object}=best;
@@ -604,7 +635,7 @@ class WorldRuntime{
         this.destroyedIds.add(object.id);
         this.app.game.score+=10;
         this.rebuildRuntimeFlags();
-        this.app.showMessage(object.logic.message||`${object.name} destroyed`);
+        this.app.showMessage(object.logic.message||`${object.name} 已破壞`);
       }else{
         this.app.showMessage(`${object.name}: ${object.logic.health}`);
       }
@@ -652,7 +683,7 @@ class UILayer{
     if(!source) return null;
     const copy=deepClone(source);
     copy.id=uid('ui');
-    copy.name=`${source.name} Copy`;
+    copy.name=`${source.name} 複本`;
     copy.x=clamp(copy.x+2,0,96);
     copy.y=clamp(copy.y+2,0,96);
     this.addElement(copy);
@@ -700,7 +731,7 @@ class UILayer{
     }else if(element.type==='statusBar'){
       node.innerHTML=`<div class="game-ui-status"><div class="game-ui-status-label">${escapeHTML(element.text||element.name)}</div><div class="game-ui-bar"><div class="game-ui-fill"></div></div></div>`;
     }else if(element.type==='score'){
-      node.textContent=element.text||'Score';
+      node.textContent=element.text||'分數';
     }else{
       node.textContent=element.text||'';
     }
@@ -709,7 +740,7 @@ class UILayer{
   updateBindings(){
     for(const node of $$('[data-ui-bind]',this.stage)){
       const bind=node.dataset.uiBind;
-      if(bind==='score') node.textContent=`Score ${this.app.game.score}`;
+      if(bind==='score') node.textContent=`分數 ${this.app.game.score}`;
       if(bind==='message') node.textContent=this.app.game.message||'';
       if(bind==='health'){
         const fill=$('.game-ui-fill',node);
@@ -774,7 +805,7 @@ class InputController{
     this.pointer.lastX=event.clientX;
     this.pointer.lastY=event.clientY;
     this.app.cameraYaw-=dx*.006;
-    this.app.cameraPitch=clamp(this.app.cameraPitch-dy*.004,-.7,.9);
+    this.app.cameraPitch=clamp(this.app.cameraPitch+dy*.004,-.7,.9);
   }
   movementVector(){
     const forward=(this.keys.has('KeyW')||this.keys.has('ArrowUp')?1:0)-(this.keys.has('KeyS')||this.keys.has('ArrowDown')?1:0);
@@ -833,7 +864,7 @@ class GameApp{
   }
   saveProject(){
     const project={schema:'template.project',version:1,world:this.world.serialize(),ui:this.ui.serialize()};
-    try{localStorage.setItem(STORAGE_KEY,JSON.stringify(project));}catch(err){console.warn('Save failed',err);}
+    try{localStorage.setItem(STORAGE_KEY,JSON.stringify(project));}catch(err){console.warn('儲存失敗',err);}
   }
   exportProject(){
     return {schema:'template.project',version:1,world:this.world.serialize(),ui:this.ui.serialize()};
@@ -856,7 +887,7 @@ class GameApp{
     const spawnPos=this.world.getSpawnPosition();
     this.player.position.set(spawnPos.x,Math.max(.8,spawnPos.y),spawnPos.z);
     this.player.mesh.position.copy(this.player.position);
-    if(show) this.showMessage('Restart');
+    if(show) this.showMessage('重新開始');
   }
   start(){
     this.clock.start();
@@ -887,8 +918,8 @@ class GameApp{
   updatePlayer(dt){
     const move=this.input.movementVector();
     const direction=new THREE.Vector3();
-    const forward=new THREE.Vector3(Math.sin(this.cameraYaw),0,Math.cos(this.cameraYaw));
-    const right=new THREE.Vector3(forward.z,0,-forward.x);
+    const forward=this.getCameraForward();
+    const right=this.getCameraRight(forward);
     direction.addScaledVector(forward,move.forward);
     direction.addScaledVector(right,move.strafe);
     if(direction.lengthSq()>0){
@@ -914,6 +945,12 @@ class GameApp{
     );
     this.camera.position.copy(target).add(offset);
     this.camera.lookAt(target);
+  }
+  getCameraForward(){
+    return new THREE.Vector3(-Math.sin(this.cameraYaw),0,-Math.cos(this.cameraYaw));
+  }
+  getCameraRight(forward=this.getCameraForward()){
+    return new THREE.Vector3(-forward.z,0,forward.x);
   }
   render(){
     this.renderer.render(this.scene,this.camera);
@@ -950,7 +987,7 @@ class GameApp{
       .map(object=>({id:object.id,type:object.type,name:object.name,x:+object.transform.position.x.toFixed(2),y:+object.transform.position.y.toFixed(2),z:+object.transform.position.z.toFixed(2),collidable:!!object.flags.collidable,trigger:!!object.flags.trigger,interactive:!!object.flags.interactive,destructible:!!object.flags.destructible}))
       .slice(0,60);
     return JSON.stringify({
-      note:'Coordinates use Three.js world space. X right, Y up, Z forward/back.',
+      note:'座標使用 Three.js 世界空間：X 向右、Y 向上、Z 為前後方向。',
       mode:this.creator.active?`creator:${this.creator.mode}`:'game',
       player:{x:+this.player.position.x.toFixed(2),y:+this.player.position.y.toFixed(2),z:+this.player.position.z.toFixed(2)},
       score:this.game.score,
@@ -978,15 +1015,15 @@ class CreatorBackend{
     root.hidden=true;
     root.innerHTML=`
       <div class="creator-toolbar">
-        <span class="creator-title">Game Creator</span>
-        <button type="button" data-mode="world">World Builder</button>
-        <button type="button" data-mode="ui">UI Editor</button>
-        <button type="button" data-action="save" class="primary">Save</button>
-        <button type="button" data-action="export-project">Export Project</button>
-        <button type="button" data-action="import-project">Import Project</button>
-        <button type="button" data-action="reset-project" class="danger">Reset</button>
+        <span class="creator-title">遊戲創作後台</span>
+        <button type="button" data-mode="world">空間編輯</button>
+        <button type="button" data-mode="ui">介面編輯</button>
+        <button type="button" data-action="save" class="primary">儲存</button>
+        <button type="button" data-action="export-project">匯出專案</button>
+        <button type="button" data-action="import-project">匯入專案</button>
+        <button type="button" data-action="reset-project" class="danger">重設</button>
         <span class="spacer"></span>
-        <button type="button" data-action="close">Close</button>
+        <button type="button" data-action="close">關閉</button>
       </div>
       <section class="creator-panel left" data-world-left></section>
       <section class="creator-panel right" data-world-right></section>
@@ -1007,9 +1044,9 @@ class CreatorBackend{
       const action=event.target.closest('[data-action]')?.dataset.action;
       if(!action) return;
       if(action==='close') this.disable();
-      if(action==='save'){this.app.saveProject();this.setStatus('Project saved');}
-      if(action==='export-project') this.openJsonModal({title:'Export Project JSON',value:JSON.stringify(this.app.exportProject(),null,2)});
-      if(action==='import-project') this.openJsonModal({title:'Import Project JSON',value:'',applyLabel:'Import',onApply:text=>this.app.importProject(JSON.parse(text))});
+      if(action==='save'){this.app.saveProject();this.setStatus('專案已儲存');}
+      if(action==='export-project') this.openJsonModal({title:'匯出專案 JSON',value:JSON.stringify(this.app.exportProject(),null,2)});
+      if(action==='import-project') this.openJsonModal({title:'匯入專案 JSON',value:'',applyLabel:'匯入',onApply:text=>this.app.importProject(JSON.parse(text))});
       if(action==='reset-project') this.resetProject();
     });
   }
@@ -1046,11 +1083,11 @@ class CreatorBackend{
     if(this.mode==='world'){
       this.uiEditor.disable();
       this.worldBuilder.enable();
-      this.setStatus('World Builder active');
+      this.setStatus('空間編輯模式');
     }else{
       this.worldBuilder.disable();
       this.uiEditor.enable();
-      this.setStatus('UI Editor active');
+      this.setStatus('介面編輯模式');
     }
     this.refresh();
   }
@@ -1071,11 +1108,11 @@ class CreatorBackend{
     if(this.status) this.status.textContent=text||'';
   }
   resetProject(){
-    if(!confirm('Reset world and UI template data?')) return;
+    if(!confirm('要重設世界與介面模板資料嗎？')) return;
     this.app.importProject({version:1,world:createDefaultWorld(),ui:createDefaultUI()});
-    this.setStatus('Template reset');
+    this.setStatus('模板已重設');
   }
-  openJsonModal({title,value='',applyLabel='Copy',onApply=null}){
+  openJsonModal({title,value='',applyLabel='複製',onApply=null}){
     const backdrop=document.createElement('div');
     backdrop.className='modal-backdrop';
     backdrop.innerHTML=`
@@ -1083,9 +1120,9 @@ class CreatorBackend{
         <h2>${escapeHTML(title)}</h2>
         <textarea spellcheck="false"></textarea>
         <div class="modal-actions">
-          <button type="button" data-modal="download">Download</button>
+          <button type="button" data-modal="download">下載</button>
           <button type="button" data-modal="apply" class="primary">${escapeHTML(applyLabel)}</button>
-          <button type="button" data-modal="close">Close</button>
+          <button type="button" data-modal="close">關閉</button>
         </div>
       </div>`;
     const textarea=$('textarea',backdrop);
@@ -1101,9 +1138,9 @@ class CreatorBackend{
           else{
             textarea.select();
             navigator.clipboard?.writeText(textarea.value).catch(()=>document.execCommand?.('copy'));
-            this.setStatus('JSON copied');
+            this.setStatus('JSON 已複製');
           }
-        }catch(err){alert(`Invalid JSON: ${err.message}`);}
+        }catch(err){alert(`JSON 格式錯誤：${err.message}`);}
       }
     });
     this.root.appendChild(backdrop);
@@ -1191,39 +1228,42 @@ class WorldBuilder{
     this.updateSelectionHelper();
     const count=this.app.world.data.objects.length;
     const grid=this.app.world.data.settings.gridSize;
-    this.creator.setStatus(`World Builder | tool ${this.tool} | objects ${count} | grid ${grid}`);
+    this.creator.setStatus(`空間編輯｜工具 ${this.toolLabel(this.tool)}｜物件 ${count}｜格線 ${grid}`);
+  }
+  toolLabel(tool){
+    return tool==='select'?'選取':(WORLD_TYPE_DEFS[tool]?.label||tool);
   }
   renderLeft(){
     this.left.innerHTML=`
       <div class="creator-section">
-        <h2>Tools</h2>
+        <h2>工具</h2>
         <div class="creator-grid three">
-          <button type="button" data-world-tool="select">Select</button>
-          <button type="button" data-world-action="undo">Undo</button>
-          <button type="button" data-world-action="redo">Redo</button>
+          <button type="button" data-world-tool="select">選取</button>
+          <button type="button" data-world-action="undo">復原</button>
+          <button type="button" data-world-action="redo">重做</button>
         </div>
         <div class="creator-palette">
           ${Object.entries(WORLD_TYPE_DEFS).map(([type,def])=>`<button type="button" data-world-tool="${type}">${escapeHTML(def.label)}</button>`).join('')}
         </div>
       </div>
       <div class="creator-section">
-        <h2>Grid</h2>
+        <h2>格線</h2>
         <div class="creator-grid two">
-          <label>Size<input data-world-setting="gridSize" type="number" min="0.05" step="0.05" value="${this.app.world.data.settings.gridSize}"></label>
-          <label class="inline-check"><input data-world-setting="snap" type="checkbox" ${this.app.world.data.settings.snap?'checked':''}> Snap</label>
+          <label>大小<input data-world-setting="gridSize" type="number" min="0.05" step="0.05" value="${this.app.world.data.settings.gridSize}"></label>
+          <label class="inline-check"><input data-world-setting="snap" type="checkbox" ${this.app.world.data.settings.snap?'checked':''}> 吸附</label>
         </div>
       </div>
       <div class="creator-section">
-        <h2>Objects</h2>
+        <h2>物件列表</h2>
         <div class="creator-list">
           ${this.app.world.data.objects.map(object=>`
             <div class="creator-row ${object.id===this.selectedId?'is-selected':''}" data-world-select="${object.id}">
               <div>
                 <div class="row-title">${escapeHTML(object.name)}</div>
-                <div class="row-meta">${escapeHTML(object.type)}</div>
+                <div class="row-meta">${escapeHTML(WORLD_TYPE_DEFS[object.type]?.label||object.type)}</div>
               </div>
-              <span class="row-meta">${object.flags.collidable?'COL':'VIS'}</span>
-            </div>`).join('')||'<p class="muted">No objects</p>'}
+              <span class="row-meta">${object.flags.collidable?'碰撞':'顯示'}</span>
+            </div>`).join('')||'<p class="muted">尚無物件</p>'}
         </div>
       </div>`;
     $$('[data-world-tool]',this.left).forEach(button=>button.classList.toggle('is-active',button.dataset.worldTool===this.tool));
@@ -1233,14 +1273,14 @@ class WorldBuilder{
     if(!object){
       this.right.innerHTML=`
         <div class="creator-section">
-          <h2>Selection</h2>
+          <h2>選取</h2>
           <div class="creator-grid two">
-            <button type="button" data-world-action="add-at-player">Add At Player</button>
-            <button type="button" data-world-action="export-world">Export World</button>
-            <button type="button" data-world-action="import-world">Import World</button>
-            <button type="button" data-world-action="clear-world" class="danger">Clear World</button>
+            <button type="button" data-world-action="add-at-player">放在玩家前方</button>
+            <button type="button" data-world-action="export-world">匯出世界</button>
+            <button type="button" data-world-action="import-world">匯入世界</button>
+            <button type="button" data-world-action="clear-world" class="danger">清空世界</button>
           </div>
-          <p class="muted">Select an object from the scene or list.</p>
+          <p class="muted">請從場景或列表選取物件。</p>
         </div>`;
       return;
     }
@@ -1248,56 +1288,56 @@ class WorldBuilder{
     const faceOptions=FACE_KEYS.map(face=>`<option value="${face}" ${(skin.singleFace||'pz')===face?'selected':''}>${FACE_LABELS[face]}</option>`).join('');
     this.right.innerHTML=`
       <div class="creator-section">
-        <h2>Object</h2>
+        <h2>物件</h2>
         <div class="creator-grid two">
-          <button type="button" data-world-action="duplicate">Duplicate</button>
-          <button type="button" data-world-action="delete" class="danger">Delete</button>
-          <button type="button" data-world-action="export-world">Export World</button>
-          <button type="button" data-world-action="import-world">Import World</button>
+          <button type="button" data-world-action="duplicate">複製</button>
+          <button type="button" data-world-action="delete" class="danger">刪除</button>
+          <button type="button" data-world-action="export-world">匯出世界</button>
+          <button type="button" data-world-action="import-world">匯入世界</button>
         </div>
-        <label>Name<input data-world-field="name" value="${escapeHTML(object.name)}"></label>
-        <label>Type<select data-world-field="type">${Object.keys(WORLD_TYPE_DEFS).map(type=>`<option value="${type}" ${object.type===type?'selected':''}>${WORLD_TYPE_DEFS[type].label}</option>`).join('')}</select></label>
+        <label>名稱<input data-world-field="name" value="${escapeHTML(object.name)}"></label>
+        <label>類型<select data-world-field="type">${Object.keys(WORLD_TYPE_DEFS).map(type=>`<option value="${type}" ${object.type===type?'selected':''}>${WORLD_TYPE_DEFS[type].label}</option>`).join('')}</select></label>
       </div>
       <div class="creator-section">
-        <h2>Transform</h2>
+        <h2>變換</h2>
         <div class="creator-grid three">
-          ${axisInputs('transform.position',object.transform.position,'Pos')}
+          ${axisInputs('transform.position',object.transform.position,'位置')}
         </div>
         <div class="creator-grid three">
-          ${axisInputs('transform.rotation',object.transform.rotation,'Rot')}
+          ${axisInputs('transform.rotation',object.transform.rotation,'旋轉')}
         </div>
         <div class="creator-grid three">
-          ${axisInputs('size',object.size,'Size',.05)}
+          ${axisInputs('size',object.size,'尺寸',.05)}
         </div>
         <div class="creator-grid three">
-          ${axisInputs('transform.scale',object.transform.scale,'Scale',.05)}
+          ${axisInputs('transform.scale',object.transform.scale,'縮放',.05)}
         </div>
       </div>
       <div class="creator-section">
-        <h2>Material</h2>
+        <h2>材質</h2>
         <div class="creator-grid two">
-          <label>Color<input data-world-field="material.color" type="color" value="${object.material.color||'#ffffff'}"></label>
-          <label>Opacity<input data-world-field="material.opacity" type="number" min="0" max="1" step="0.05" value="${object.material.opacity??1}"></label>
+          <label>顏色<input data-world-field="material.color" type="color" value="${object.material.color||'#ffffff'}"></label>
+          <label>透明度<input data-world-field="material.opacity" type="number" min="0" max="1" step="0.05" value="${object.material.opacity??1}"></label>
         </div>
-        <label>Skin Mode<select data-world-field="material.skin.mode">
-          ${['color','stretch','repeat','single','perFace'].map(mode=>`<option value="${mode}" ${skin.mode===mode?'selected':''}>${mode}</option>`).join('')}
+        <label>貼圖模式<select data-world-field="material.skin.mode">
+          ${['color','stretch','repeat','single','perFace'].map(mode=>`<option value="${mode}" ${skin.mode===mode?'selected':''}>${SKIN_MODE_LABELS[mode]}</option>`).join('')}
         </select></label>
         <div class="creator-grid two">
-          <button type="button" data-world-action="upload-texture">Upload Texture</button>
-          <button type="button" data-world-action="clear-texture">Clear Texture</button>
+          <button type="button" data-world-action="upload-texture">上傳貼圖</button>
+          <button type="button" data-world-action="clear-texture">清除貼圖</button>
         </div>
         <div class="creator-grid three">
-          <label>Repeat X<input data-world-field="material.skin.repeat.x" type="number" min="0.05" step="0.05" value="${skin.repeat?.x??1}"></label>
-          <label>Repeat Y<input data-world-field="material.skin.repeat.y" type="number" min="0.05" step="0.05" value="${skin.repeat?.y??1}"></label>
-          <label>Face<select data-world-field="material.skin.singleFace">${faceOptions}</select></label>
+          <label>橫向重複<input data-world-field="material.skin.repeat.x" type="number" min="0.05" step="0.05" value="${skin.repeat?.x??1}"></label>
+          <label>直向重複<input data-world-field="material.skin.repeat.y" type="number" min="0.05" step="0.05" value="${skin.repeat?.y??1}"></label>
+          <label>指定面<select data-world-field="material.skin.singleFace">${faceOptions}</select></label>
         </div>
         <div class="creator-grid two">
-          <button type="button" data-world-action="upload-face-texture">Upload Face</button>
-          <button type="button" data-world-action="clear-face-texture">Clear Face</button>
+          <button type="button" data-world-action="upload-face-texture">上傳單面</button>
+          <button type="button" data-world-action="clear-face-texture">清除單面</button>
         </div>
       </div>
       <div class="creator-section">
-        <h2>Logic</h2>
+        <h2>遊戲邏輯</h2>
         <div class="creator-grid two">
           ${flagInput('collidable',object.flags.collidable)}
           ${flagInput('destructible',object.flags.destructible)}
@@ -1306,10 +1346,10 @@ class WorldBuilder{
           ${flagInput('spawn',object.flags.spawn)}
         </div>
         <div class="creator-grid two">
-          <label>Health<input data-world-field="logic.health" type="number" min="0" step="1" value="${object.logic.health??1}"></label>
-          <label>Message<input data-world-field="logic.message" value="${escapeHTML(object.logic.message||'')}"></label>
+          <label>生命值<input data-world-field="logic.health" type="number" min="0" step="1" value="${object.logic.health??1}"></label>
+          <label>訊息<input data-world-field="logic.message" value="${escapeHTML(object.logic.message||'')}"></label>
         </div>
-        <label>Text<textarea data-world-field="logic.text">${escapeHTML(object.logic.text||'')}</textarea></label>
+        <label>文字<textarea data-world-field="logic.text">${escapeHTML(object.logic.text||'')}</textarea></label>
       </div>`;
   }
   handleClick(event){
@@ -1325,8 +1365,8 @@ class WorldBuilder{
     if(action==='duplicate') this.duplicate();
     if(action==='delete') this.deleteSelected();
     if(action==='clear-world') this.clearWorld();
-    if(action==='export-world') this.creator.openJsonModal({title:'Export World JSON',value:JSON.stringify(this.app.world.serialize(),null,2)});
-    if(action==='import-world') this.creator.openJsonModal({title:'Import World JSON',value:'',applyLabel:'Import',onApply:text=>{this.history.capture();this.app.world.load(JSON.parse(text));this.app.world.saveLocal();this.selectedId=null;this.refresh();}});
+    if(action==='export-world') this.creator.openJsonModal({title:'匯出世界 JSON',value:JSON.stringify(this.app.world.serialize(),null,2)});
+    if(action==='import-world') this.creator.openJsonModal({title:'匯入世界 JSON',value:'',applyLabel:'匯入',onApply:text=>{this.history.capture();this.app.world.load(JSON.parse(text));this.app.world.saveLocal();this.selectedId=null;this.refresh();}});
     if(action==='upload-texture') this.requestTexture({kind:'main'});
     if(action==='clear-texture') this.setTexture('');
     if(action==='upload-face-texture') this.requestTexture({kind:'face'});
@@ -1424,7 +1464,7 @@ class WorldBuilder{
     this.select(object.id);
   }
   addPositionNearPlayer(){
-    const forward=new THREE.Vector3(Math.sin(this.app.cameraYaw),0,Math.cos(this.app.cameraYaw));
+    const forward=this.app.getCameraForward();
     return this.app.player.position.clone().addScaledVector(forward,2);
   }
   duplicate(){
@@ -1441,7 +1481,7 @@ class WorldBuilder{
     this.refresh();
   }
   clearWorld(){
-    if(!confirm('Clear all world objects?')) return;
+    if(!confirm('要清空所有世界物件嗎？')) return;
     this.history.capture();
     this.app.world.clear();
     this.selectedId=null;
@@ -1452,7 +1492,7 @@ class WorldBuilder{
     if((event.ctrlKey||event.metaKey)&&event.code==='KeyZ'){event.preventDefault();this.history.undo();return true;}
     if((event.ctrlKey||event.metaKey)&&(event.code==='KeyY'||(event.shiftKey&&event.code==='KeyZ'))){event.preventDefault();this.history.redo();return true;}
     if((event.ctrlKey||event.metaKey)&&event.code==='KeyD'){event.preventDefault();this.duplicate();return true;}
-    if((event.ctrlKey||event.metaKey)&&event.code==='KeyS'){event.preventDefault();this.app.saveProject();this.creator.setStatus('Project saved');return true;}
+    if((event.ctrlKey||event.metaKey)&&event.code==='KeyS'){event.preventDefault();this.app.saveProject();this.creator.setStatus('專案已儲存');return true;}
     if(event.code==='Delete'||event.code==='Backspace'){event.preventDefault();this.deleteSelected();return true;}
     const object=this.app.world.getObject(this.selectedId);
     if(object&&['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(event.code)){
@@ -1541,7 +1581,7 @@ function axisInputs(path,value,label,min=null){
   return ['x','y','z'].map(axis=>`<label>${label} ${axis.toUpperCase()}<input data-world-field="${path}.${axis}" type="number" step="0.05" ${min!==null?`min="${min}"`:''} value="${value?.[axis]??0}"></label>`).join('');
 }
 function flagInput(name,checked){
-  return `<label class="inline-check"><input data-world-flag="${name}" type="checkbox" ${checked?'checked':''}> ${name}</label>`;
+  return `<label class="inline-check"><input data-world-flag="${name}" type="checkbox" ${checked?'checked':''}> ${FLAG_LABELS[name]||name}</label>`;
 }
 function setPath(object,path,value){
   const parts=path.split('.');
@@ -1600,43 +1640,43 @@ class UIEditor{
     this.renderRight();
     this.refreshBoxes();
     const count=this.app.ui.data.elements.filter(element=>element.screen===this.screen).length;
-    this.creator.setStatus(`UI Editor | screen ${this.screen} | elements ${count}`);
+    this.creator.setStatus(`介面編輯｜畫面 ${SCREEN_LABELS[this.screen]||this.screen}｜元件 ${count}`);
   }
   renderLeft(){
     const elements=this.app.ui.data.elements.filter(element=>element.screen===this.screen);
     this.left.innerHTML=`
       <div class="creator-section">
-        <h2>Screen</h2>
+        <h2>畫面</h2>
         <div class="creator-grid three">
-          ${['game','loading','results'].map(screen=>`<button type="button" data-ui-screen="${screen}">${screen}</button>`).join('')}
+          ${['game','loading','results'].map(screen=>`<button type="button" data-ui-screen="${screen}">${SCREEN_LABELS[screen]}</button>`).join('')}
         </div>
       </div>
       <div class="creator-section">
-        <h2>Add Element</h2>
+        <h2>新增元件</h2>
         <div class="creator-palette">
           ${Object.entries(UI_TYPE_DEFS).map(([type,def])=>`<button type="button" data-ui-add="${type}">${escapeHTML(def.label)}</button>`).join('')}
         </div>
       </div>
       <div class="creator-section">
-        <h2>Actions</h2>
+        <h2>操作</h2>
         <div class="creator-grid two">
-          <button type="button" data-ui-action="undo">Undo</button>
-          <button type="button" data-ui-action="redo">Redo</button>
-          <button type="button" data-ui-action="export-ui">Export UI</button>
-          <button type="button" data-ui-action="import-ui">Import UI</button>
+          <button type="button" data-ui-action="undo">復原</button>
+          <button type="button" data-ui-action="redo">重做</button>
+          <button type="button" data-ui-action="export-ui">匯出介面</button>
+          <button type="button" data-ui-action="import-ui">匯入介面</button>
         </div>
       </div>
       <div class="creator-section">
-        <h2>Elements</h2>
+        <h2>元件列表</h2>
         <div class="creator-list">
           ${elements.sort((a,b)=>a.z-b.z).map(element=>`
             <div class="creator-row ${element.id===this.selectedId?'is-selected':''} ${element.visible===false?'is-hidden':''}" data-ui-select="${element.id}">
               <div>
                 <div class="row-title">${escapeHTML(element.name)}</div>
-                <div class="row-meta">${escapeHTML(element.type)}</div>
+                <div class="row-meta">${escapeHTML(UI_TYPE_DEFS[element.type]?.label||element.type)}</div>
               </div>
               <span class="row-meta">Z ${element.z}</span>
-            </div>`).join('')||'<p class="muted">No UI elements</p>'}
+            </div>`).join('')||'<p class="muted">尚無介面元件</p>'}
         </div>
       </div>`;
     $$('[data-ui-screen]',this.left).forEach(button=>button.classList.toggle('is-active',button.dataset.uiScreen===this.screen));
@@ -1646,51 +1686,51 @@ class UIEditor{
     if(!element){
       this.right.innerHTML=`
         <div class="creator-section">
-          <h2>Selection</h2>
-          <p class="muted">Select a UI element from the preview or list.</p>
+          <h2>選取</h2>
+          <p class="muted">請從預覽畫面或列表選取介面元件。</p>
         </div>`;
       return;
     }
     this.right.innerHTML=`
       <div class="creator-section">
-        <h2>Element</h2>
+        <h2>元件</h2>
         <div class="creator-grid two">
-          <button type="button" data-ui-action="duplicate">Duplicate</button>
-          <button type="button" data-ui-action="delete" class="danger">Delete</button>
-          <button type="button" data-ui-action="upload-image">Upload Image</button>
-          <button type="button" data-ui-action="clear-image">Clear Image</button>
+          <button type="button" data-ui-action="duplicate">複製</button>
+          <button type="button" data-ui-action="delete" class="danger">刪除</button>
+          <button type="button" data-ui-action="upload-image">上傳圖片</button>
+          <button type="button" data-ui-action="clear-image">清除圖片</button>
         </div>
-        <label>Name<input data-ui-field="name" value="${escapeHTML(element.name)}"></label>
+        <label>名稱<input data-ui-field="name" value="${escapeHTML(element.name)}"></label>
         <div class="creator-grid two">
-          <label>Type<select data-ui-field="type">${Object.keys(UI_TYPE_DEFS).map(type=>`<option value="${type}" ${element.type===type?'selected':''}>${UI_TYPE_DEFS[type].label}</option>`).join('')}</select></label>
-          <label>Screen<select data-ui-field="screen">${['game','loading','results'].map(screen=>`<option value="${screen}" ${element.screen===screen?'selected':''}>${screen}</option>`).join('')}</select></label>
+          <label>類型<select data-ui-field="type">${Object.keys(UI_TYPE_DEFS).map(type=>`<option value="${type}" ${element.type===type?'selected':''}>${UI_TYPE_DEFS[type].label}</option>`).join('')}</select></label>
+          <label>畫面<select data-ui-field="screen">${['game','loading','results'].map(screen=>`<option value="${screen}" ${element.screen===screen?'selected':''}>${SCREEN_LABELS[screen]}</option>`).join('')}</select></label>
         </div>
       </div>
       <div class="creator-section">
-        <h2>Layout</h2>
+        <h2>版面</h2>
         <div class="creator-grid four">
           ${['x','y','w','h'].map(key=>`<label>${key.toUpperCase()} %<input data-ui-field="${key}" type="number" step="0.1" value="${element[key]}"></label>`).join('')}
         </div>
         <div class="creator-grid three">
-          <label>Z<input data-ui-field="z" type="number" step="1" value="${element.z}"></label>
-          <label>Opacity<input data-ui-field="opacity" type="number" min="0" max="1" step="0.05" value="${element.opacity}"></label>
-          <label>Radius<input data-ui-field="radius" type="number" min="0" step="1" value="${element.radius}"></label>
+          <label>層級<input data-ui-field="z" type="number" step="1" value="${element.z}"></label>
+          <label>透明度<input data-ui-field="opacity" type="number" min="0" max="1" step="0.05" value="${element.opacity}"></label>
+          <label>圓角<input data-ui-field="radius" type="number" min="0" step="1" value="${element.radius}"></label>
         </div>
         <div class="creator-grid two">
-          <label class="inline-check"><input data-ui-flag="visible" type="checkbox" ${element.visible!==false?'checked':''}> Visible</label>
-          <label class="inline-check"><input data-ui-flag="locked" type="checkbox" ${element.locked?'checked':''}> Locked</label>
+          <label class="inline-check"><input data-ui-flag="visible" type="checkbox" ${element.visible!==false?'checked':''}> 顯示</label>
+          <label class="inline-check"><input data-ui-flag="locked" type="checkbox" ${element.locked?'checked':''}> 鎖定</label>
         </div>
       </div>
       <div class="creator-section">
-        <h2>Style</h2>
-        <label>Text<textarea data-ui-field="text">${escapeHTML(element.text||'')}</textarea></label>
+        <h2>樣式</h2>
+        <label>文字<textarea data-ui-field="text">${escapeHTML(element.text||'')}</textarea></label>
         <div class="creator-grid two">
-          <label>Font Size<input data-ui-field="fontSize" type="number" min="6" step="1" value="${element.fontSize}"></label>
-          <label>Binding<select data-ui-field="bind">${['none','score','health','message','action','restart'].map(bind=>`<option value="${bind}" ${element.bind===bind?'selected':''}>${bind}</option>`).join('')}</select></label>
-          <label>Text Color<input data-ui-field="color" type="color" value="${cssColorToHex(element.color,'#eef4ff')}"></label>
-          <label>Background<input data-ui-field="bgColor" value="${escapeHTML(element.bgColor)}"></label>
-          <label>Border<input data-ui-field="borderColor" value="${escapeHTML(element.borderColor)}"></label>
-          <label>Aspect<select data-ui-field="frameAspect">${['free','16:9','4:3','1:1','9:16'].map(aspect=>`<option value="${aspect}" ${element.frameAspect===aspect?'selected':''}>${aspect}</option>`).join('')}</select></label>
+          <label>字體大小<input data-ui-field="fontSize" type="number" min="6" step="1" value="${element.fontSize}"></label>
+          <label>資料綁定<select data-ui-field="bind">${['none','score','health','message','action','restart'].map(bind=>`<option value="${bind}" ${element.bind===bind?'selected':''}>${BIND_LABELS[bind]}</option>`).join('')}</select></label>
+          <label>文字顏色<input data-ui-field="color" type="color" value="${cssColorToHex(element.color,'#eef4ff')}"></label>
+          <label>背景<input data-ui-field="bgColor" value="${escapeHTML(element.bgColor)}"></label>
+          <label>邊框<input data-ui-field="borderColor" value="${escapeHTML(element.borderColor)}"></label>
+          <label>比例<select data-ui-field="frameAspect">${['free','16:9','4:3','1:1','9:16'].map(aspect=>`<option value="${aspect}" ${element.frameAspect===aspect?'selected':''}>${aspect==='free'?'自由':aspect}</option>`).join('')}</select></label>
         </div>
       </div>`;
   }
@@ -1726,8 +1766,8 @@ class UIEditor{
     if(action==='delete') this.deleteSelected();
     if(action==='upload-image') this.requestImage();
     if(action==='clear-image') this.setImage('');
-    if(action==='export-ui') this.creator.openJsonModal({title:'Export UI JSON',value:JSON.stringify(this.app.ui.serialize(),null,2)});
-    if(action==='import-ui') this.creator.openJsonModal({title:'Import UI JSON',value:'',applyLabel:'Import',onApply:text=>{this.history.capture();this.app.ui.load(JSON.parse(text));this.app.ui.saveLocal();this.selectedId=null;this.refresh();}});
+    if(action==='export-ui') this.creator.openJsonModal({title:'匯出介面 JSON',value:JSON.stringify(this.app.ui.serialize(),null,2)});
+    if(action==='import-ui') this.creator.openJsonModal({title:'匯入介面 JSON',value:'',applyLabel:'匯入',onApply:text=>{this.history.capture();this.app.ui.load(JSON.parse(text));this.app.ui.saveLocal();this.selectedId=null;this.refresh();}});
   }
   handleInput(event){
     const element=this.app.ui.getElement(this.selectedId);
@@ -1796,7 +1836,7 @@ class UIEditor{
     if((event.ctrlKey||event.metaKey)&&event.code==='KeyZ'){event.preventDefault();this.history.undo();return true;}
     if((event.ctrlKey||event.metaKey)&&(event.code==='KeyY'||(event.shiftKey&&event.code==='KeyZ'))){event.preventDefault();this.history.redo();return true;}
     if((event.ctrlKey||event.metaKey)&&event.code==='KeyD'){event.preventDefault();this.duplicate();return true;}
-    if((event.ctrlKey||event.metaKey)&&event.code==='KeyS'){event.preventDefault();this.app.saveProject();this.creator.setStatus('Project saved');return true;}
+    if((event.ctrlKey||event.metaKey)&&event.code==='KeyS'){event.preventDefault();this.app.saveProject();this.creator.setStatus('專案已儲存');return true;}
     if(event.code==='Delete'||event.code==='Backspace'){event.preventDefault();this.deleteSelected();return true;}
     const element=this.app.ui.getElement(this.selectedId);
     if(element&&['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(event.code)){

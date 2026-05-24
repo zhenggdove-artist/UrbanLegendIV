@@ -9,6 +9,9 @@ Progress:
 - Ran a direct Playwright smoke test for `Shift+C`, World Builder add, UI Editor add, `Shift+C` close, and runtime application after close; all passed with no console/page errors.
 - Fixed camera placement and UI editor overlay stacking after screenshot review.
 - Added `TEMPLATE_GUIDE.md` with architecture, editor entry points, JSON formats, saving/deployment, and recommended new-game workflow.
+- Localized the in-game UI and creator/editor panels to Traditional Chinese, including legacy localStorage label migration for default English names.
+- Fixed movement orientation so Up/W moves forward relative to the camera and Down/S moves backward; fixed vertical mouse drag so dragging downward increases the top-down view angle.
+- Re-ran syntax check, direct Playwright smoke test for movement/drag/editor Chinese UI, and the develop-web-game Playwright client. No console/page errors were captured.
 
 TODO:
 - No open implementation TODOs from this pass.

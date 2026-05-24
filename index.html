@@ -50,6 +50,9 @@
   .creator-panel.left{left:12px}
   .creator-panel.right{right:12px}
   .creator-panel[hidden]{display:none}
+  .creator-panel.float-panel{bottom:auto;resize:both;min-width:300px;min-height:120px;max-width:calc(100vw - 24px);max-height:calc(100vh - 88px);padding:0;overflow:auto}
+  .creator-panel.float-panel.is-minimized{height:42px !important;min-height:42px;overflow:hidden;resize:none}
+  .creator-panel.float-panel .world-window-content{padding:12px}
   .creator-section{display:flex;flex-direction:column;gap:8px;padding-top:12px;margin-top:12px;border-top:1px solid rgba(255,255,255,.12)}
   .creator-section:first-child{padding-top:0;margin-top:0;border-top:none}
   .creator-section h2{margin:0;color:#f6c453;font:800 12px/1 var(--font);letter-spacing:.08em;text-transform:uppercase}
@@ -93,17 +96,27 @@
   .modal h2{margin:0;color:#f6c453;font:800 13px/1 var(--font);letter-spacing:.08em;text-transform:uppercase}
   .modal textarea{min-height:360px;white-space:pre;overflow:auto}
   .modal-actions{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
-  .world-toolkit{position:fixed;left:50%;bottom:82px;z-index:5;transform:translateX(-50%);display:grid;grid-template-columns:repeat(5,minmax(82px,1fr));gap:8px;width:min(760px,calc(100vw - 28px));padding:10px;border:1px solid rgba(94,234,212,.35);border-radius:8px;background:rgba(17,24,39,.94);box-shadow:var(--shadow);pointer-events:auto}
+  .world-window-titlebar{position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:8px;min-height:38px;padding:8px 9px;border-bottom:1px solid rgba(255,255,255,.12);background:rgba(24,34,49,.98);cursor:move}
+  .world-window-title{min-width:0;flex:1 1 auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#f6c453;font:900 12px/1 var(--font);letter-spacing:.07em;text-transform:uppercase}
+  .world-window-actions{display:flex;gap:6px;flex:0 0 auto}
+  .world-window-actions button{width:28px;min-width:28px;min-height:24px;padding:4px;font-size:12px;line-height:1}
+  .world-window-content{min-width:0}
+  .world-window-help{color:var(--muted);font:10px/1.35 var(--mono);padding:0 2px 2px}
+  .world-toolkit{position:fixed;left:260px;top:calc(100vh - 244px);z-index:1200;display:flex;flex-direction:column;gap:8px;width:min(760px,calc(100vw - 28px));min-width:300px;min-height:120px;max-width:calc(100vw - 24px);max-height:calc(100vh - 88px);padding:0;border:1px solid rgba(94,234,212,.35);border-radius:8px;background:rgba(17,24,39,.94);box-shadow:var(--shadow);pointer-events:auto;resize:both;overflow:auto}
   .world-toolkit[hidden]{display:none}
+  .world-toolkit.is-minimized{height:42px !important;min-height:42px;resize:none;overflow:hidden}
+  .world-toolkit.is-minimized .world-window-content{display:none}
+  .world-toolkit-grid{display:grid;grid-template-columns:repeat(5,minmax(82px,1fr));gap:8px;padding:10px}
   .world-toolkit button{min-height:48px;white-space:normal;line-height:1.15}
-  .world-hint{position:fixed;left:50%;top:78px;z-index:5;transform:translateX(-50%);max-width:min(720px,calc(100vw - 28px));padding:9px 12px;border:1px solid rgba(246,196,83,.38);border-radius:8px;background:rgba(7,16,24,.86);color:#f7fbff;font:12px/1.45 var(--mono);text-align:center;pointer-events:none}
+  .world-toolkit .world-window-actions button{min-height:24px}
+  .world-hint{position:fixed;left:50%;top:78px;z-index:1100;transform:translateX(-50%);max-width:min(720px,calc(100vw - 28px));padding:9px 12px;border:1px solid rgba(246,196,83,.38);border-radius:8px;background:rgba(7,16,24,.86);color:#f7fbff;font:12px/1.45 var(--mono);text-align:center;pointer-events:none}
   .world-hint[hidden]{display:none}
   body.creator-active #ui-stage{z-index:980}
   body.creator-world .game-ui-element{pointer-events:none}
   @media (max-width:900px){
     .creator-toolbar{left:8px;right:8px;top:8px}
-    .creator-panel{top:70px;bottom:auto;left:8px !important;right:8px !important;width:auto;max-height:38vh}
-    .creator-panel.right{top:calc(70px + 38vh + 8px)}
+    .creator-panel:not(.float-panel){top:70px;bottom:auto;left:8px !important;right:8px !important;width:auto;max-height:38vh}
+    .creator-panel.right:not(.float-panel){top:calc(70px + 38vh + 8px)}
     .creator-palette{grid-template-columns:repeat(3,minmax(0,1fr))}
     .status-line{left:8px;right:8px;bottom:8px}
   }
@@ -145,7 +158,13 @@ const WORLD_TYPE_DEFS={
   trigger:{label:'觸發區',size:{x:2,y:.35,z:2},color:'#5eead4',flags:{trigger:true}},
   spawn:{label:'出生點',size:{x:.75,y:1.2,z:.75},color:'#8bd17c',flags:{spawn:true}},
   textSign:{label:'文字牌',size:{x:2.4,y:1.1,z:.12},color:'#f5efd6',flags:{interactive:true}},
-  interactive:{label:'互動物件',size:{x:1,y:1.3,z:1},color:'#b49cff',flags:{interactive:true,collidable:true}}
+  interactive:{label:'互動物件',size:{x:1,y:1.3,z:1},color:'#b49cff',flags:{interactive:true,collidable:true}},
+  roomPrefab:{label:'完整房間',size:{x:6,y:3,z:6},color:'#8fa6b8',flags:{collidable:true}},
+  housePrefab:{label:'斜屋頂小屋',size:{x:4.5,y:3.2,z:4},color:'#d7b06a',flags:{collidable:true}},
+  shopPrefab:{label:'店面建築',size:{x:5.2,y:3.4,z:3.8},color:'#c88f78',flags:{collidable:true}},
+  towerPrefab:{label:'高樓建築',size:{x:3.8,y:7,z:3.8},color:'#9ca8b5',flags:{collidable:true}},
+  stairsPrefab:{label:'一段階梯',size:{x:2.4,y:1.6,z:3.4},color:'#b7c0cb',flags:{collidable:true}},
+  platformPrefab:{label:'大型平台',size:{x:5.5,y:2.2,z:4.2},color:'#7aa56a',flags:{collidable:true}}
 };
 const FACE_KEYS=['px','nx','py','ny','pz','nz'];
 const FACE_LABELS={px:'+X',nx:'-X',py:'+Y',ny:'-Y',pz:'+Z',nz:'-Z'};
@@ -559,8 +578,17 @@ class WorldRuntime{
       if(object.flags.spawn) this.spawnPoints.push({object,root});
       if(object.flags.trigger) this.triggers.push({object,root,inside:false});
       if(object.flags.collidable&&!destroyed){
-        const box=new THREE.Box3().setFromObject(root);
-        this.colliders.push({object,root,box});
+        let colliderCount=0;
+        root.traverse(child=>{
+          if(!child.isMesh||child.userData.collider===false) return;
+          const box=new THREE.Box3().setFromObject(child);
+          this.colliders.push({object,root:child,box});
+          colliderCount++;
+        });
+        if(!colliderCount){
+          const box=new THREE.Box3().setFromObject(root);
+          this.colliders.push({object,root,box});
+        }
       }
     }
   }
@@ -595,6 +623,8 @@ class WorldRuntime{
   }
   createMesh(object){
     const size=this.scaledSize(object);
+    const parts=this.prefabParts(object.type,size);
+    if(parts) return this.createPrefabGroup(object,parts);
     let geometry;
     let material;
     if(object.type==='spawn'){
@@ -610,9 +640,108 @@ class WorldRuntime{
     mesh.userData.worldObjectId=object.id;
     return mesh;
   }
-  createMaterial(object,src=null,{repeat={x:1,y:1},wrap=false}={}){
+  createPrefabGroup(object,parts){
+    const group=new THREE.Group();
+    group.userData.worldObjectId=object.id;
+    for(const part of parts){
+      let geometry;
+      if(part.shape==='cone') geometry=new THREE.ConeGeometry(part.size.x*.5,part.size.y,part.sides||4);
+      else geometry=new THREE.BoxGeometry(part.size.x,part.size.y,part.size.z);
+      const material=part.shape==='cone'
+        ? this.createMaterial(object,null,{color:part.color})
+        : this.createBoxMaterials(object,part.size,part.color);
+      const mesh=new THREE.Mesh(geometry,material);
+      mesh.userData.worldObjectId=object.id;
+      mesh.userData.collider=part.collider!==false;
+      mesh.position.set(part.position.x,part.position.y,part.position.z);
+      if(part.rotation) mesh.rotation.set((part.rotation.x||0)*DEG,(part.rotation.y||0)*DEG,(part.rotation.z||0)*DEG);
+      group.add(mesh);
+    }
+    return group;
+  }
+  prefabParts(type,size){
+    const t=Math.max(.12,Math.min(size.x,size.y,size.z)*.055);
+    const h=size.y;
+    const x=size.x;
+    const z=size.z;
+    if(type==='roomPrefab'){
+      const doorW=Math.min(x*.36,1.7);
+      const sideW=Math.max(.2,(x-doorW)*.5);
+      return [
+        {size:{x,y:t,z},position:{x:0,y:-h*.5+t*.5,z:0},color:'#65778a'},
+        {size:{x,y:h,z:t},position:{x:0,y:0,z:-z*.5+t*.5},color:'#8fa6b8'},
+        {size:{x:t,y:h,z},position:{x:-x*.5+t*.5,y:0,z:0},color:'#7f94a7'},
+        {size:{x:t,y:h,z},position:{x:x*.5-t*.5,y:0,z:0},color:'#7f94a7'},
+        {size:{x:sideW,y:h,z:t},position:{x:-x*.5+sideW*.5,y:0,z:z*.5-t*.5},color:'#8fa6b8'},
+        {size:{x:sideW,y:h,z:t},position:{x:x*.5-sideW*.5,y:0,z:z*.5-t*.5},color:'#8fa6b8'}
+      ];
+    }
+    if(type==='housePrefab'){
+      const bodyH=h*.68;
+      const roofH=h*.2;
+      return [
+        {size:{x:x*.92,y:bodyH,z:z*.9},position:{x:0,y:-h*.5+bodyH*.5,z:0},color:'#d7b06a'},
+        {size:{x:x*1.04,y:roofH,z:z*1.02},position:{x:0,y:-h*.5+bodyH+roofH*.5,z:0},color:'#8a4f3d'},
+        {size:{x:x*.22,y:bodyH*.48,z:t*.8},position:{x:0,y:-h*.5+bodyH*.24,z:z*.46},color:'#493225',collider:false},
+        {size:{x:x*.12,y:h*.16,z:x*.12},position:{x:x*.28,y:-h*.5+bodyH+roofH+h*.08,z:-z*.16},color:'#5d4035'}
+      ];
+    }
+    if(type==='shopPrefab'){
+      const bodyH=h*.76;
+      return [
+        {size:{x:x*.96,y:bodyH,z:z*.9},position:{x:0,y:-h*.5+bodyH*.5,z:0},color:'#c88f78'},
+        {size:{x:x,y:h*.12,z:z*.96},position:{x:0,y:-h*.5+bodyH+h*.06,z:0},color:'#f6c453'},
+        {size:{x:x*.9,y:h*.1,z:z*.2},position:{x:0,y:-h*.5+bodyH*.72,z:z*.52},color:'#5eead4',collider:false},
+        {size:{x:x*.22,y:bodyH*.52,z:t*.9},position:{x:-x*.26,y:-h*.5+bodyH*.26,z:z*.46},color:'#243244',collider:false},
+        {size:{x:x*.22,y:bodyH*.52,z:t*.9},position:{x:x*.26,y:-h*.5+bodyH*.26,z:z*.46},color:'#243244',collider:false}
+      ];
+    }
+    if(type==='towerPrefab'){
+      const bodyH=h*.9;
+      const floorH=bodyH/5;
+      const parts=[
+        {size:{x:x*.9,y:bodyH,z:z*.9},position:{x:0,y:-h*.5+bodyH*.5,z:0},color:'#9ca8b5'},
+        {size:{x:x,y:h*.08,z:z},position:{x:0,y:-h*.5+bodyH+h*.04,z:0},color:'#586575'}
+      ];
+      for(let i=1;i<5;i++){
+        parts.push({size:{x:x*.96,y:t*.55,z:z*.96},position:{x:0,y:-h*.5+floorH*i,z:0},color:'#c5ced8',collider:false});
+      }
+      return parts;
+    }
+    if(type==='stairsPrefab'){
+      const steps=6;
+      const depth=z/steps;
+      const parts=[];
+      for(let i=0;i<steps;i++){
+        const stepH=h*(i+1)/steps;
+        parts.push({
+          size:{x,y:stepH,z:depth},
+          position:{x:0,y:-h*.5+stepH*.5,z:-z*.5+depth*(i+.5)},
+          color:'#b7c0cb'
+        });
+      }
+      return parts;
+    }
+    if(type==='platformPrefab'){
+      const slabH=Math.max(t,h*.18);
+      const pillarH=h-slabH;
+      const px=x*.08;
+      const pz=z*.08;
+      const sx=x*.42;
+      const sz=z*.32;
+      return [
+        {size:{x,y:slabH,z},position:{x:0,y:h*.5-slabH*.5,z:0},color:'#7aa56a'},
+        {size:{x:px,y:pillarH,z:pz},position:{x:-sx,y:-h*.5+pillarH*.5,z:-sz},color:'#506454'},
+        {size:{x:px,y:pillarH,z:pz},position:{x:sx,y:-h*.5+pillarH*.5,z:-sz},color:'#506454'},
+        {size:{x:px,y:pillarH,z:pz},position:{x:-sx,y:-h*.5+pillarH*.5,z:sz},color:'#506454'},
+        {size:{x:px,y:pillarH,z:pz},position:{x:sx,y:-h*.5+pillarH*.5,z:sz},color:'#506454'}
+      ];
+    }
+    return null;
+  }
+  createMaterial(object,src=null,{repeat={x:1,y:1},wrap=false,color=null}={}){
     const mat=new THREE.MeshStandardMaterial({
-      color:new THREE.Color(object.material.color||'#ffffff'),
+      color:new THREE.Color(color||object.material.color||'#ffffff'),
       roughness:.72,
       metalness:0,
       transparent:(object.material.opacity??1)<1||object.flags.trigger,
@@ -625,22 +754,22 @@ class WorldRuntime{
     }
     return mat;
   }
-  createBoxMaterials(object,size){
+  createBoxMaterials(object,size,color=null){
     const skin=object.material.skin||{};
     if(skin.mode==='perFace'){
-      return FACE_KEYS.map(face=>this.createMaterial(object,skin.faces?.[face]||null,{repeat:skin.repeat||{x:1,y:1},wrap:false}));
+      return FACE_KEYS.map(face=>this.createMaterial(object,skin.faces?.[face]||null,{repeat:skin.repeat||{x:1,y:1},wrap:false,color}));
     }
     if(skin.mode==='single'){
-      return FACE_KEYS.map(face=>this.createMaterial(object,face===(skin.singleFace||'pz')?skin.src:null,{repeat:skin.repeat||{x:1,y:1},wrap:false}));
+      return FACE_KEYS.map(face=>this.createMaterial(object,face===(skin.singleFace||'pz')?skin.src:null,{repeat:skin.repeat||{x:1,y:1},wrap:false,color}));
     }
     if(skin.mode==='stretch'){
-      return this.createMaterial(object,skin.src,{repeat:{x:1,y:1},wrap:false});
+      return this.createMaterial(object,skin.src,{repeat:{x:1,y:1},wrap:false,color});
     }
     if(skin.mode==='repeat'){
       const repeat=skin.repeat||{x:Math.max(1,size.x),y:Math.max(1,size.y)};
-      return this.createMaterial(object,skin.src,{repeat,wrap:true});
+      return this.createMaterial(object,skin.src,{repeat,wrap:true,color});
     }
-    return this.createMaterial(object);
+    return this.createMaterial(object,null,{color});
   }
   pick(raycaster){
     const roots=[...this.meshes.values()].filter(Boolean);
@@ -986,6 +1115,7 @@ class InputController{
     app.canvas.addEventListener('pointerdown',event=>this.onPointerDown(event));
     window.addEventListener('pointermove',event=>this.onPointerMove(event));
     window.addEventListener('pointerup',()=>this.pointer.dragging=false);
+    window.addEventListener('wheel',event=>this.onWheel(event),{passive:false});
   }
   clear(){
     this.keys.clear();
@@ -1035,6 +1165,12 @@ class InputController{
     this.app.cameraYaw-=dx*.006;
     this.app.cameraPitch=clamp(this.app.cameraPitch+dy*.004,-.7,.9);
   }
+  onWheel(event){
+    if(!this.app.creator.active) return;
+    if(event.target.closest?.('.creator-panel,.world-toolkit,.creator-toolbar,.modal-backdrop')) return;
+    event.preventDefault();
+    this.app.zoomCamera(event.deltaY);
+  }
   movementVector(){
     const forward=(this.keys.has('KeyW')||this.keys.has('ArrowUp')?1:0)-(this.keys.has('KeyS')||this.keys.has('ArrowDown')?1:0);
     const strafe=(this.keys.has('KeyD')||this.keys.has('ArrowRight')?1:0)-(this.keys.has('KeyA')||this.keys.has('ArrowLeft')?1:0);
@@ -1054,6 +1190,7 @@ class GameApp{
     this.camera=new THREE.PerspectiveCamera(62,1,.05,160);
     this.cameraYaw=0;
     this.cameraPitch=.34;
+    this.cameraDistance=7;
     this.textureBank=new TextureBank();
     this.clock=new THREE.Clock();
     this.game={score:0,health:100,message:'',messageTimer:0,screen:'game',time:0};
@@ -1164,7 +1301,7 @@ class GameApp{
     this.player.mesh.position.copy(this.player.position);
   }
   updateCamera(){
-    const distance=7;
+    const distance=this.cameraDistance;
     const target=this.player.position.clone().add(new THREE.Vector3(0,.55,0));
     const horizontal=Math.cos(this.cameraPitch)*distance;
     const height=2.2+Math.sin(this.cameraPitch)*distance;
@@ -1181,6 +1318,11 @@ class GameApp{
   }
   getCameraRight(forward=this.getCameraForward()){
     return new THREE.Vector3(-forward.z,0,forward.x);
+  }
+  zoomCamera(deltaY){
+    const factor=deltaY>0?1.12:.88;
+    this.cameraDistance=clamp(this.cameraDistance*factor,2.6,24);
+    this.updateCamera();
   }
   render(){
     this.renderer.render(this.scene,this.camera);
@@ -1221,6 +1363,7 @@ class GameApp{
       note:'座標使用 Three.js 世界空間：X 向右、Y 向上、Z 為前後方向。',
       mode:this.creator.active?`creator:${this.creator.mode}`:'game',
       player:{x:+this.player.position.x.toFixed(2),y:+this.player.position.y.toFixed(2),z:+this.player.position.z.toFixed(2)},
+      camera:{distance:+this.cameraDistance.toFixed(2),pitch:+this.cameraPitch.toFixed(2),yaw:+this.cameraYaw.toFixed(2)},
       score:this.game.score,
       health:this.game.health,
       message:this.game.message,
@@ -1753,6 +1896,11 @@ class WorldBuilder{
     this.toolkitOpen=false;
     this.toolkit=null;
     this.hint=null;
+    this.windowDrag=null;
+    this.windowStates={
+      toolkit:{initialized:false,minimized:false,x:0,y:0,w:760,h:184},
+      buildPanel:{initialized:false,minimized:false,x:0,y:76,w:374,h:520}
+    };
     this.gridHelper=null;
     this.selectionHelper=null;
     this.raycaster=new THREE.Raycaster();
@@ -1761,6 +1909,7 @@ class WorldBuilder{
     this.drag=null;
     this.textureTarget=null;
     this.toolKeys=Object.keys(WORLD_TYPE_DEFS);
+    this.right.classList.add('float-panel');
     this.history=new HistoryStack(()=>this.app.world.serialize(),snapshot=>{
       this.app.world.load(snapshot);
       this.app.world.saveLocal();
@@ -1784,6 +1933,7 @@ class WorldBuilder{
     if(this.toolkit) this.toolkit.hidden=true;
     if(this.hint) this.hint.hidden=true;
     this.drag=null;
+    this.windowDrag=null;
     this.toolkitOpen=false;
   }
   ensureGrid(){
@@ -1804,8 +1954,13 @@ class WorldBuilder{
     this.toolkit=document.createElement('div');
     this.toolkit.className='world-toolkit';
     this.toolkit.hidden=true;
-    this.toolkit.addEventListener('pointerdown',event=>event.stopPropagation());
+    this.toolkit.addEventListener('pointerdown',event=>this.handleFloatingPointerDown(event));
     this.toolkit.addEventListener('click',event=>{
+      const windowAction=event.target.closest('[data-world-window-action]')?.dataset.worldWindowAction;
+      if(windowAction){
+        this.handleWindowAction(windowAction,event.target.closest('[data-window-key]')?.dataset.windowKey);
+        return;
+      }
       const tool=event.target.closest('[data-world-toolkit]')?.dataset.worldToolkit;
       if(!tool) return;
       this.setTool(tool);
@@ -1818,6 +1973,85 @@ class WorldBuilder{
     document.body.appendChild(this.toolkit);
     document.body.appendChild(this.hint);
   }
+  windowElement(key){
+    return key==='toolkit'?this.toolkit:this.right;
+  }
+  ensureFloatingState(key,element){
+    const state=this.windowStates[key];
+    if(state.initialized) return state;
+    const maxW=Math.max(300,window.innerWidth-24);
+    const maxH=Math.max(120,window.innerHeight-88);
+    if(key==='toolkit'){
+      state.w=Math.min(760,maxW);
+      state.h=Math.min(220,maxH);
+      state.x=clamp((window.innerWidth-state.w)*.5,12,Math.max(12,window.innerWidth-92));
+      state.y=clamp(window.innerHeight-state.h-82,76,Math.max(76,window.innerHeight-52));
+    }else{
+      state.w=Math.min(374,maxW);
+      state.h=Math.min(560,maxH);
+      state.x=clamp(window.innerWidth-state.w-12,12,Math.max(12,window.innerWidth-92));
+      state.y=76;
+    }
+    state.initialized=true;
+    this.applyFloatingState(key,element);
+    return state;
+  }
+  applyFloatingState(key,element=this.windowElement(key)){
+    if(!element) return;
+    const state=this.ensureFloatingState(key,element);
+    const visibleW=state.minimized?160:Math.min(state.w,window.innerWidth-24);
+    const visibleH=state.minimized?42:Math.min(state.h,window.innerHeight-88);
+    state.x=clamp(state.x,12,Math.max(12,window.innerWidth-80));
+    state.y=clamp(state.y,64,Math.max(64,window.innerHeight-42));
+    element.style.left=`${state.x}px`;
+    element.style.top=`${state.y}px`;
+    element.style.right='auto';
+    element.style.bottom='auto';
+    element.style.width=`${visibleW}px`;
+    element.style.height=`${visibleH}px`;
+    element.classList.toggle('is-minimized',!!state.minimized);
+  }
+  floatingChrome(key,title){
+    const state=this.windowStates[key];
+    const label=state.minimized?'展開':'最小化';
+    const symbol=state.minimized?'□':'_';
+    return `
+      <div class="world-window-titlebar" data-window-drag="${key}">
+        <div class="world-window-title">${escapeHTML(title)}</div>
+        <div class="world-window-actions">
+          <button type="button" title="${label}" data-window-key="${key}" data-world-window-action="minimize">${symbol}</button>
+        </div>
+      </div>`;
+  }
+  floatingWindowHTML(key,title,body){
+    const state=this.windowStates[key];
+    return `${this.floatingChrome(key,title)}${state.minimized?'':`<div class="world-window-content">${body}</div>`}`;
+  }
+  handleWindowAction(action,key){
+    if(action!=='minimize'||!this.windowStates[key]) return;
+    const state=this.windowStates[key];
+    state.minimized=!state.minimized;
+    this.applyFloatingState(key);
+    this.refresh();
+  }
+  handleFloatingPointerDown(event){
+    const titlebar=event.target.closest('[data-window-drag]');
+    if(!titlebar||event.target.closest('button,input,select,textarea')) return;
+    const key=titlebar.dataset.windowDrag;
+    const element=this.windowElement(key);
+    if(!element) return;
+    const state=this.ensureFloatingState(key,element);
+    const rect=element.getBoundingClientRect();
+    state.x=rect.left;
+    state.y=rect.top;
+    if(!state.minimized){
+      state.w=rect.width;
+      state.h=rect.height;
+    }
+    this.windowDrag={key,startX:event.clientX,startY:event.clientY,x:state.x,y:state.y};
+    event.preventDefault();
+    event.stopPropagation();
+  }
   bindCanvas(){
     const canvas=this.app.canvas;
     canvas.addEventListener('pointerdown',event=>this.onPointerDown(event),true);
@@ -1827,6 +2061,7 @@ class WorldBuilder{
   bindPanels(){
     this.left.addEventListener('click',event=>this.handleClick(event));
     this.right.addEventListener('click',event=>this.handleClick(event));
+    this.right.addEventListener('pointerdown',event=>this.handleFloatingPointerDown(event));
     this.left.addEventListener('input',event=>this.handleInput(event));
     this.right.addEventListener('input',event=>this.handleInput(event));
     $('#asset-file-input').addEventListener('change',event=>this.handleAssetFile(event));
@@ -1874,11 +2109,17 @@ class WorldBuilder{
   }
   renderToolkit(){
     if(!this.toolkit) return;
+    this.applyFloatingState('toolkit',this.toolkit);
     const entries=[['select',{label:'選取/拖拉'}],...Object.entries(WORLD_TYPE_DEFS)];
-    this.toolkit.innerHTML=entries.map(([type,def],index)=>`
-      <button type="button" class="${type===this.tool?'is-active':''}" data-world-toolkit="${type}">
-        ${index<10?`${index===0?'0':index}. `:''}${escapeHTML(def.label)}
-      </button>`).join('');
+    const body=`
+      <div class="world-window-help">可拖曳標題列移動，右下角可縮放。按 E 會把目前工具安裝在角色前方。</div>
+      <div class="world-toolkit-grid">
+        ${entries.map(([type,def],index)=>`
+          <button type="button" class="${type===this.tool?'is-active':''}" data-world-toolkit="${type}">
+            ${index<10?`${index===0?'0':index}. `:''}${escapeHTML(def.label)}
+          </button>`).join('')}
+      </div>`;
+    this.toolkit.innerHTML=this.floatingWindowHTML('toolkit','工具包',body);
     this.toolkit.hidden=!this.toolkitOpen||!this.creator.active||this.creator.mode!=='world';
   }
   updateHint(){
@@ -1946,7 +2187,7 @@ class WorldBuilder{
   renderRight(){
     const object=this.app.world.getObject(this.selectedId);
     if(!object){
-      this.right.innerHTML=`
+      const body=`
         <div class="creator-section">
           <h2>角色走位建造</h2>
           <div class="creator-grid two">
@@ -1958,11 +2199,13 @@ class WorldBuilder{
           </div>
           <p class="muted">點選場景中的物件會暫停角色走位並進入物件調整；點角色或空白處回到角色控制。</p>
         </div>`;
+      this.applyFloatingState('buildPanel',this.right);
+      this.right.innerHTML=this.floatingWindowHTML('buildPanel','角色走位建造',body);
       return;
     }
     const skin=object.material.skin||{};
     const faceOptions=FACE_KEYS.map(face=>`<option value="${face}" ${(skin.singleFace||'pz')===face?'selected':''}>${FACE_LABELS[face]}</option>`).join('');
-    this.right.innerHTML=`
+    const body=`
       <div class="creator-section">
         <h2>物件</h2>
         <div class="creator-grid two">
@@ -2038,8 +2281,15 @@ class WorldBuilder{
           <button type="button" data-world-action="import-world">匯入世界</button>
         </div>
       </div>`;
+    this.applyFloatingState('buildPanel',this.right);
+    this.right.innerHTML=this.floatingWindowHTML('buildPanel','物件調整',body);
   }
   handleClick(event){
+    const windowAction=event.target.closest('[data-world-window-action]')?.dataset.worldWindowAction;
+    if(windowAction){
+      this.handleWindowAction(windowAction,event.target.closest('[data-window-key]')?.dataset.windowKey);
+      return;
+    }
     const tool=event.target.closest('[data-world-tool]')?.dataset.worldTool;
     if(tool){this.setTool(tool);this.refresh();return;}
     const select=event.target.closest('[data-world-select]')?.dataset.worldSelect;
@@ -2287,6 +2537,18 @@ class WorldBuilder{
     this.setControlTarget('player');
   }
   onPointerMove(event){
+    if(this.windowDrag){
+      const state=this.windowStates[this.windowDrag.key];
+      const element=this.windowElement(this.windowDrag.key);
+      if(state&&element){
+        state.x=this.windowDrag.x+(event.clientX-this.windowDrag.startX);
+        state.y=this.windowDrag.y+(event.clientY-this.windowDrag.startY);
+        this.applyFloatingState(this.windowDrag.key,element);
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
     if(!this.drag||!this.creator.active||this.creator.mode!=='world') return;
     event.preventDefault();
     event.stopPropagation();
@@ -2320,6 +2582,10 @@ class WorldBuilder{
     this.updateHint();
   }
   onPointerUp(){
+    if(this.windowDrag){
+      this.windowDrag=null;
+      return;
+    }
     if(!this.drag) return;
     this.drag=null;
     this.app.world.saveLocal();

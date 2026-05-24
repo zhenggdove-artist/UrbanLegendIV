@@ -17,6 +17,11 @@ Progress:
 - Extended project JSON/localStorage persistence to include `actors`, and added actor import/export through the creator backend.
 - Re-ran syntax parsing, the develop-web-game Playwright client, and a direct Playwright flow covering Shift+C, world-mode player movement, toolkit opening, keyboard placement, object resize dragging, returning to player control, actor-mode NPC creation, and PNG sequence import. No console/page errors were captured.
 - Adjusted World Builder empty-space/floor pointer handling so left-drag still controls the camera in creation mode; object installation is now through `E` or panel buttons. Re-tested that downward mouse drag increases top-down pitch and does not create objects, then re-ran and visually inspected the standard Playwright screenshot.
+- Added World Builder mouse-wheel camera zoom in edit mode. The zoom is ignored over editor panels/toolbars so those areas can still scroll normally.
+- Made the World Builder toolkit and right-side build/object panel floating editor windows with draggable title bars, CSS resize handles, and top-right minimize/restore buttons. Raised toolkit/hint z-index so floating toolkit controls are not blocked by the creator root.
+- Added large reusable world prefabs: complete room, small house, shop building, tower building, staircase, and large platform. Prefabs render as multi-mesh objects but remain a single editable world object with position/size/material/skin controls.
+- Updated collision rebuilding to create collider boxes per mesh for composite prefabs, so room/building/stair pieces can participate in runtime collision instead of using only a single bounding box.
+- Re-ran syntax parsing, develop-web-game Playwright client, and a direct Playwright flow covering editor wheel zoom, toolkit minimize/drag/resize, build panel minimize/drag/resize, room prefab placement, prefab resize, and texture upload. No console/page errors were captured and screenshots were inspected.
 
 TODO:
 - 3D model import currently supports GLB or self-contained GLTF data URLs; GLTF files with separate external `.bin`/texture files will need an asset resolver if that workflow becomes important.

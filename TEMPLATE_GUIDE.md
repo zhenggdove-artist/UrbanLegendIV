@@ -19,6 +19,7 @@
 - 後台上方可切換 `World Builder`、`角色/NPC` 與 `UI Editor`。
 - `World Builder` 預設仍可操作角色移動；`B` / `Tab` 開關底部工具包，`E` 會把目前工具安裝在角色前方。
 - 點選場景物件會切到物件調整；拖曳可改尺寸或位置，`G` 切移動拖拉，`V` 切尺寸拖拉，點角色或空白處回到角色控制。
+- 在 World Builder 中，滑鼠滾輪可縮放 3D 視窗。工具包與右側「角色走位建造 / 物件調整」視窗可拖曳移動、右下角縮放，右上角可最小化。
 - `Esc`: 離開後台。
 - `Ctrl/Cmd + S`: 儲存。
 - `Ctrl/Cmd + Z`: 復原。
@@ -76,7 +77,9 @@
 }
 ```
 
-`type` 目前包含：`block`、`floor`、`wall`、`platform`、`obstacle`、`destructible`、`trigger`、`spawn`、`textSign`、`interactive`。
+`type` 目前包含：`block`、`floor`、`wall`、`platform`、`obstacle`、`destructible`、`trigger`、`spawn`、`textSign`、`interactive`、`roomPrefab`、`housePrefab`、`shopPrefab`、`towerPrefab`、`stairsPrefab`、`platformPrefab`。
+
+大型 prefab 物件會以多個 Three.js mesh 組成，但在資料上仍是一個 world object，因此仍可用同一套位置、旋轉、尺寸、縮放、貼圖與遊戲邏輯欄位編輯。
 
 材質貼圖模式：
 

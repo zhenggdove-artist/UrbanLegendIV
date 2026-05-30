@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-<title>3D 網頁遊戲創作模板</title>
-<meta name="description" content="可重複使用的單檔 Three.js 遊戲模板，內建空間編輯器與介面編輯器。">
+<title>Sin Tower 網頁重製版</title>
+<meta name="description" content="以 Three.js 創作系統重建的 Sin Tower 網頁遊戲。">
 <style>
   :root{
     --panel:#111827;
@@ -39,6 +39,25 @@
   .game-ui-fill{position:absolute;left:0;top:0;bottom:0;width:100%;background:linear-gradient(90deg,#8bd17c,#f6c453)}
   #game-toast{position:fixed;left:50%;bottom:22px;z-index:80;transform:translateX(-50%);max-width:min(560px,calc(100vw - 32px));padding:10px 14px;border:1px solid rgba(94,234,212,.42);border-radius:8px;background:rgba(7,16,24,.86);color:#dffefa;font:700 12px/1.35 var(--mono);opacity:0;pointer-events:none;transition:opacity .16s ease}
   #game-toast.show{opacity:1}
+  .sin-overlay{position:fixed;inset:0;z-index:900;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(0,0,0,.72);pointer-events:auto}
+  .sin-overlay[hidden]{display:none}
+  .sin-dialog{width:min(520px,calc(100vw - 36px));padding:18px;border:1px solid rgba(246,196,83,.42);border-radius:8px;background:rgba(7,16,24,.96);box-shadow:var(--shadow);color:#eef4ff}
+  .sin-dialog h2{margin:0 0 10px;color:#f6c453;font:900 14px/1.2 var(--font);letter-spacing:.08em;text-transform:uppercase}
+  .sin-dialog p{margin:0 0 12px;color:#a9b7c9;font:12px/1.55 var(--mono)}
+  .sin-code-input{width:100%;height:54px;text-align:center;text-transform:uppercase;letter-spacing:.22em;font:900 28px/1 var(--mono);border-color:rgba(246,196,83,.38);background:#070d15}
+  .sin-password-panel{width:min(900px,calc(100vw - 24px));height:min(620px,calc(100vh - 24px));display:flex;flex-direction:column;align-items:center;justify-content:center;gap:32px;border:0;background:radial-gradient(circle at 50% 48%,rgba(74,110,128,.34),rgba(0,0,0,.84) 46%,#000 78%);box-shadow:none}
+  .sin-slots{display:flex;align-items:center;justify-content:center;gap:46px;min-height:104px}
+  .sin-slot{min-width:74px;text-align:center;color:rgba(217,238,255,.82);font:900 70px/1 var(--mono);text-shadow:0 0 8px rgba(162,220,255,.54),2px 2px 0 rgba(0,25,42,.74);transition:color .08s ease,transform .08s ease,text-shadow .08s ease}
+  .sin-slot.is-selected{color:#ff5b5b;text-shadow:0 0 10px rgba(255,190,190,.82),2px 2px 0 rgba(80,0,0,.62);transform:translateY(-3px)}
+  .sin-password-meta{height:18px;color:rgba(210,229,242,.58);font:800 11px/1 var(--mono);letter-spacing:.22em;text-transform:uppercase}
+  .sin-intro{position:fixed;inset:0;z-index:850;display:flex;align-items:center;justify-content:center;background:#000;pointer-events:none;opacity:1;transition:opacity .8s ease}
+  .sin-intro[hidden]{display:none}
+  .sin-intro.is-fading{opacity:0}
+  .sin-intro video{width:100%;height:100%;object-fit:cover;opacity:.78}
+  .sin-intro .sin-intro-fallback{position:absolute;inset:0;background:radial-gradient(circle at 50% 50%,rgba(40,54,62,.45),#000 54%)}
+  .sin-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:12px;flex-wrap:wrap}
+  .sin-reading{width:min(760px,calc(100vw - 36px));max-height:min(680px,calc(100vh - 36px));display:flex;flex-direction:column}
+  .sin-reading .sin-text{min-height:260px;max-height:calc(100vh - 220px);overflow:auto;white-space:pre-wrap;padding:12px;border:1px solid rgba(255,255,255,.12);border-radius:7px;background:rgba(255,255,255,.04);font:13px/1.65 var(--font);color:#eef4ff}
 
   .creator-root{position:fixed;inset:0;z-index:1000;pointer-events:none;color:var(--text);font-family:var(--font)}
   .creator-root[hidden]{display:none}
@@ -130,13 +149,15 @@
 <div id="ui-stage"></div>
 <div id="game-toast"></div>
 <input id="asset-file-input" type="file" accept="image/*" hidden>
-<input id="actor-file-input" type="file" accept="image/png,image/*,.png,.glb,.gltf,model/gltf+json,model/gltf-binary" multiple hidden>
+<input id="actor-file-input" type="file" accept="image/png,image/*,.png,.glb,.gltf,.fbx,model/gltf+json,model/gltf-binary" multiple hidden>
 
 <script type="module">
 import * as THREE from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+import {FBXLoader} from 'three/addons/loaders/FBXLoader.js';
+import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 
-const STORAGE_KEY='webGameCreatorTemplate.project.v1';
+const STORAGE_KEY='sinTower.webGameCreator.project.v2';
 const DEG=Math.PI/180;
 const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
 const snap=(v,size)=>size>0?Math.round(v/size)*size:v;
@@ -147,6 +168,86 @@ const $$=(selector,root=document)=>Array.from(root.querySelectorAll(selector));
 const isEditable=el=>!!el&&['INPUT','TEXTAREA','SELECT'].includes(el.tagName);
 const escapeHTML=value=>String(value??'').replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
 const toNumber=(value,fallback=0)=>Number.isFinite(Number(value))?Number(value):fallback;
+const SIN_TOWER_ORIGINAL_BASE='assets/sin_tower/original/assets/';
+const SIN_TOWER_ASSET_BASE=`${SIN_TOWER_ORIGINAL_BASE}models/`;
+const SIN_TOWER_MONK_MODEL=`${SIN_TOWER_ORIGINAL_BASE}MONK/Praying.fbx`;
+const SIN_TOWER_DOOR_MODEL=`${SIN_TOWER_ORIGINAL_BASE}door/σé│ΘÇüΘûÇ.fbx`;
+const SIN_TOWER_CHURCH_MODEL='assets/sin_tower/light/church/War Damaged Church.light.fbx';
+const SIN_TOWER_STELE_MODEL=`${SIN_TOWER_ORIGINAL_BASE}µê┐Θûôσàºτë⌐Σ╗╢/τƒ│τóæ/τƒ│τóæ1.fbx`;
+const SIN_TOWER_BOOK_MODEL=`${SIN_TOWER_ORIGINAL_BASE}房間內書籍/01.glb`;
+const SIN_TOWER_BOOK_PAGE=`${SIN_TOWER_ORIGINAL_BASE}房間內書籍/book1內頁/內頁底圖1.jpg`;
+const SIN_TOWER_STAIR_TEXTURE=`${SIN_TOWER_ORIGINAL_BASE}textures/stairs/樓梯皮2.jpg`;
+const SIN_TOWER_BUILDING_MODELS=[
+  `${SIN_TOWER_ORIGINAL_BASE}樓梯旁建築群/建築群A.glb`,
+  `${SIN_TOWER_ORIGINAL_BASE}樓梯旁建築群/建築群B.glb`,
+  `${SIN_TOWER_ORIGINAL_BASE}樓梯旁建築群/建築群C.glb`
+];
+const SIN_TOWER_PILLAR_MODELS=[
+  `${SIN_TOWER_ORIGINAL_BASE}pillars/柱子C.fbx`,
+  `${SIN_TOWER_ORIGINAL_BASE}σÇÆσ£¿µ¿ôµó»Σ╕èτÜäµƒ▒σ¡É/µƒ▒σ¡ÉB.fbx`
+];
+const SIN_TOWER_OPENING_VIDEO=`${SIN_TOWER_ORIGINAL_BASE}遊戲開場影片/遊戲開場影片2.ogv`;
+const SIN_TOWER_ROOM_VIDEO=`${SIN_TOWER_ORIGINAL_BASE}furniture/VIDEO/2.ogv`;
+const SIN_TOWER_MONK_VIDEO=`${SIN_TOWER_ORIGINAL_BASE}房間內僧侶祈禱中心/僧侶祈禱影片4.ogv`;
+const SIN_TOWER_STAIR_VIDEOS=[
+  `${SIN_TOWER_ORIGINAL_BASE}樓梯牛/牛三.ogv`,
+  `${SIN_TOWER_ORIGINAL_BASE}樓梯鳥/鳥.ogv`,
+  `${SIN_TOWER_ORIGINAL_BASE}樓梯花/花.ogv`,
+  `${SIN_TOWER_ORIGINAL_BASE}樓梯大眼睛/大眼睛.ogv`
+];
+const SIN_STEP_HEIGHT=.3;
+const SIN_STEP_DEPTH=3;
+const SIN_STAIR_TILT_DEGREES=35;
+const SIN_TILT=SIN_STAIR_TILT_DEGREES*DEG;
+const SIN_TILT_COS=Math.cos(SIN_TILT);
+const SIN_TILT_SIN=Math.sin(SIN_TILT);
+const SIN_WORLD_FLOOR_DEPTH=(SIN_STEP_DEPTH*SIN_TILT_COS)-(SIN_STEP_HEIGHT*SIN_TILT_SIN);
+const SIN_WORLD_FLOOR_HEIGHT=(SIN_STEP_HEIGHT*SIN_TILT_COS)+(SIN_STEP_DEPTH*SIN_TILT_SIN);
+const SIN_FORWARD_SPEED=7.5*(SIN_WORLD_FLOOR_DEPTH/SIN_STEP_DEPTH);
+const SIN_LATERAL_SPEED=10;
+const SIN_MAX_X=6;
+const SIN_ROOM_SPEED=8;
+const SIN_PLAYER_CLEARANCE=.88;
+const SIN_TOWER_ROOMS={
+  room100:{floor:100,title:'第一房間｜田野紀錄',base:{x:90,z:32},spawn:{x:90,y:1.1,z:52}},
+  room200:{floor:200,title:'第二房間｜祈禱中心',base:{x:220,z:32},spawn:{x:220,y:1.1,z:52}},
+  room300:{floor:300,title:'第三房間｜終端經文',base:{x:350,z:32},spawn:{x:350,y:1.1,z:52}}
+};
+function sinTiltPosition(local){
+  return {
+    x:local.x,
+    y:(local.y*SIN_TILT_COS)-(local.z*SIN_TILT_SIN),
+    z:(local.y*SIN_TILT_SIN)+(local.z*SIN_TILT_COS)
+  };
+}
+function sinFloorPosition(floor){
+  return sinTiltPosition({x:0,y:floor*SIN_STEP_HEIGHT,z:-floor*SIN_STEP_DEPTH});
+}
+function sinStairPlaneY(worldZ,clearance=SIN_PLAYER_CLEARANCE){
+  return Math.max(SIN_PLAYER_CLEARANCE,(-worldZ/SIN_WORLD_FLOOR_DEPTH)*SIN_WORLD_FLOOR_HEIGHT+clearance);
+}
+function sinPlayerPositionForFloor(floor,x=0){
+  const pos=sinFloorPosition(floor);
+  return {x,y:pos.y+SIN_PLAYER_CLEARANCE,z:pos.z};
+}
+function sinDoorPosition(floor,offset={x:0,y:0,z:0}){
+  return sinTiltPosition({
+    x:offset.x,
+    y:floor*SIN_STEP_HEIGHT+(SIN_STEP_HEIGHT*.5)+toNumber(offset.y,0),
+    z:-floor*SIN_STEP_DEPTH+toNumber(offset.z,0)
+  });
+}
+const SIN_TOWER_BOOK_TEXT=`桃園田野紀錄
+那天下午陽光極好，空氣乾乾的，沒有風，只有長長的沉靜。
+我走進觀音工業區邊緣的那塊放牧地。它不在地圖上有名字，也沒有正式的圍欄，更沒有明確的人在管理。只是廠房之後，出乎意料地展開的一段坡地，像是城市忘了收尾的句點。
+
+牛就在這個背景裡出現。一小群黃牛安靜地在山腳、護坡與下方低地來回移動，幾乎不發出聲音。牠們像是被放置於地景中作為秩序參照的重量。
+
+那天，一名孩子朝牛群丟石頭。怪物氣憤得大聲哞叫，男孩被突然的叫喊驚嚇向後退，不小心踢到石子摔下山坡昏去。人群迅速將責任指向牛與放牧老人。真相只剩形狀。
+
+夜裡，怪物一邊啜泣，一邊看著男孩的父親將自己的肚子剖開放血。
+「食我者，惡將在你們的血脈中昇華，世世代代成為我的形、我的臉。」
+終於怪物找到了自己的樣子。`;
 
 const WORLD_TYPE_DEFS={
   block:{label:'方塊',size:{x:1,y:1,z:1},color:'#d8b36a',flags:{collidable:true}},
@@ -164,7 +265,25 @@ const WORLD_TYPE_DEFS={
   shopPrefab:{label:'店面建築',size:{x:5.2,y:3.4,z:3.8},color:'#c88f78',flags:{collidable:true}},
   towerPrefab:{label:'高樓建築',size:{x:3.8,y:7,z:3.8},color:'#9ca8b5',flags:{collidable:true}},
   stairsPrefab:{label:'一段階梯',size:{x:2.4,y:1.6,z:3.4},color:'#b7c0cb',flags:{collidable:true}},
-  platformPrefab:{label:'大型平台',size:{x:5.5,y:2.2,z:4.2},color:'#7aa56a',flags:{collidable:true}}
+  platformPrefab:{label:'大型平台',size:{x:5.5,y:2.2,z:4.2},color:'#7aa56a',flags:{collidable:true}},
+  sinDoorPrefab:{label:'Sin Tower 密碼門',size:{x:2.4,y:3.4,z:.7},color:'#f2d27a',flags:{interactive:true,collidable:true}},
+  sinOriginalDoorPrefab:{
+    label:'Sin Tower 原模型門',
+    size:{x:2.4,y:3.4,z:.7},
+    color:'#f2d27a',
+    flags:{interactive:true,collidable:true},
+    logic:{model:{type:'fbx',src:SIN_TOWER_DOOR_MODEL,scale:1,fitToSize:true,fitSize:{x:3.6,y:5.8,z:2.1},tint:null,position:{x:0,y:0,z:0},rotation:{x:0,y:0,z:0}}}
+  },
+  sinModelPrefab:{label:'Sin Tower 原作模型',size:{x:4,y:4,z:4},color:'#d8b36a',flags:{collidable:false}},
+  sinStairStepPrefab:{label:'Sin Tower 原作階梯',size:{x:12,y:.3,z:3},color:'#8a6b4c',flags:{collidable:true}},
+  sinRoomPrefab:{label:'Sin Tower 房間骨架',size:{x:13,y:4,z:13},color:'#67717f',flags:{collidable:true}},
+  sinBookPrefab:{label:'房間書籍',size:{x:2.4,y:.9,z:1.8},color:'#e8d9b6',flags:{interactive:true},logic:{model:{type:'gltf',src:SIN_TOWER_BOOK_MODEL,scale:1,fitToSize:true,fitSize:{x:2.4,y:.9,z:1.8},position:{x:0,y:0,z:0},rotation:{x:0,y:0,z:0}}}},
+  sinTVPrefab:{label:'房間電視',size:{x:1.6,y:1.2,z:.45},color:'#2b3442',flags:{interactive:true}},
+  sinVideoPlanePrefab:{label:'Sin Tower 影片平面',size:{x:8,y:4.5,z:.1},color:'#8ee7ff',flags:{interactive:false}},
+  sinPortalPrefab:{label:'Sin Tower 傳送門',size:{x:5,y:6,z:.5},color:'#f6d978',flags:{interactive:true,trigger:true}},
+  sinMonkPrefab:{label:'祈禱僧侶',size:{x:1.2,y:2.1,z:1.2},color:'#c7b38a',flags:{interactive:true},logic:{model:{type:'fbx',src:SIN_TOWER_MONK_MODEL,scale:1,fitToSize:true,fitSize:{x:1.2,y:2.1,z:1.2},position:{x:0,y:0,z:0},rotation:{x:0,y:180,z:0}}}},
+  sinAltarPrefab:{label:'祈禱中心',size:{x:2.6,y:1.4,z:2.6},color:'#8d788f',flags:{interactive:true}},
+  sinCityPrefab:{label:'樓梯旁建築群',size:{x:22,y:38,z:22},color:'#6d7c89',flags:{collidable:false}}
 };
 const FACE_KEYS=['px','nx','py','ny','pz','nz'];
 const FACE_LABELS={px:'+X',nx:'-X',py:'+Y',ny:'-Y',pz:'+Z',nz:'-Z'};
@@ -186,7 +305,7 @@ const BIND_LABELS={none:'無',score:'分數',health:'生命',message:'訊息',ac
 const SKIN_MODE_LABELS={color:'純色',stretch:'拉伸貼圖',repeat:'重複平鋪',single:'單面貼圖',perFace:'每面貼圖'};
 const FLAG_LABELS={collidable:'可碰撞',destructible:'可破壞',interactive:'可互動',trigger:'觸發區',spawn:'出生點'};
 const ACTOR_ROLE_LABELS={player:'主角',npc:'NPC'};
-const ACTOR_MODEL_LABELS={primitive:'基本模型',spriteSequence:'PNG 序列',gltf:'3D 模型'};
+const ACTOR_MODEL_LABELS={primitive:'基本模型',spriteSequence:'PNG 序列',gltf:'GLB/GLTF 模型',fbx:'FBX 模型'};
 const LEGACY_LABELS={
   Block:'方塊',Floor:'地板',Wall:'牆面',Platform:'平台',Obstacle:'障礙物',Destructible:'可破壞物',
   'Trigger Zone':'觸發區','Spawn Point':'出生點','Text Sign':'文字牌',Interactive:'互動物件',
@@ -221,7 +340,7 @@ function makeActorRole(id,patch={}){
     id,
     name:isPlayer?'主角':'NPC',
     role:isPlayer?'player':'npc',
-    model:{type:'primitive',src:'',fileName:'',sequence:[],frameRate:8,scale:isPlayer?1:0.9,billboard:true},
+    model:{type:'primitive',src:'',fileName:'',sequence:[],frameRate:8,scale:isPlayer?1:0.9,billboard:true,rotation:{x:0,y:0,z:0},position:{x:0,y:0,z:0}},
     actions:[
       {id:'idle',name:'待機',frames:{from:0,to:0},fps:6,loop:true},
       {id:'move',name:'移動',frames:{from:0,to:99},fps:10,loop:true},
@@ -237,12 +356,34 @@ function createDefaultActors(){
     version:1,
     selectedRole:'player',
     roles:{
-      player:makeActorRole('player',{name:'主角'}),
-      npc:makeActorRole('npc',{name:'NPC'})
+      player:makeActorRole('player',{
+        name:'Sin Tower 主角',
+        model:{
+          type:'fbx',
+          src:`${SIN_TOWER_ASSET_BASE}dianosaur0_run.fbx`,
+          fileName:'dianosaur0_run.fbx',
+          scale:.016,
+          rotation:{x:0,y:90,z:0},
+          position:{x:0,y:-.8,z:0},
+          billboard:false
+        },
+        interaction:{message:'主角沿著塔梯前進。',onInteract:'message',affinity:0}
+      }),
+      npc:makeActorRole('npc',{
+        name:'祈禱僧侶',
+        model:{
+          type:'fbx',
+          src:SIN_TOWER_MONK_MODEL,
+          fileName:'Praying.fbx',
+          scale:.018,
+          rotation:{x:0,y:180,z:0},
+          position:{x:0,y:-.72,z:0},
+          billboard:false
+        },
+        interaction:{message:'僧侶低聲誦念，像在替房間維持呼吸。',onInteract:'message',affinity:0}
+      })
     },
-    npcs:[
-      {id:'npc_sample',actorId:'npc',name:'測試 NPC',position:{x:1.8,y:0.75,z:1.8},rotation:{x:0,y:0,z:0},radius:0.75,enabled:true}
-    ]
+    npcs:[]
   };
 }
 
@@ -289,7 +430,7 @@ function makeWorldObject(type,patch={}){
       skin:{mode:'color',src:'',repeat:{x:1,y:1},singleFace:'pz',faces:{}}
     },
     flags,
-    logic:{health:flags.destructible?3:1,message:def.label,text:type==='textSign'?'文字':''}
+    logic:{health:flags.destructible?3:1,message:def.label,text:type==='textSign'?'文字':'',...deepClone(def.logic||{})}
   };
   return mergeObject(object,patch);
 }
@@ -305,17 +446,169 @@ function mergeObject(base,patch){
   return base;
 }
 
+function addWorldObject(objects,type,{id,name,position,size,rotation={x:0,y:0,z:0},scale={x:1,y:1,z:1},flags={},logic={},material={}}){
+  const patch={id,name,transform:{position,rotation,scale},flags,logic,material};
+  if(size) patch.size=size;
+  objects.push(makeWorldObject(type,patch));
+}
+
+function addSinModel(objects,{id,name,src,type='fbx',position,size={x:4,y:4,z:4},rotation={x:0,y:0,z:0},scale={x:1,y:1,z:1},fitSize=null,modelScale=1,flags={},logic={},tint=null}){
+  addWorldObject(objects,'sinModelPrefab',{
+    id,
+    name,
+    position,
+    rotation,
+    scale,
+    size,
+    flags:{collidable:false,...flags},
+    logic:{
+      ...logic,
+      model:{type,src,scale:modelScale,fitToSize:true,fitSize:fitSize||size,tint,position:{x:0,y:0,z:0},rotation:{x:0,y:0,z:0}}
+    },
+    material:{color:'#d8b36a',opacity:.08,skin:{mode:'color',src:'',repeat:{x:1,y:1},singleFace:'pz',faces:{}}}
+  });
+}
+
+function addSinVideo(objects,{id,name,src,position,size={x:8,y:4.5,z:.12},rotation={x:0,y:0,z:0},message='',logic={}}) {
+  addWorldObject(objects,'sinVideoPlanePrefab',{
+    id,
+    name,
+    position,
+    rotation,
+    size,
+    flags:{interactive:!!message,collidable:false},
+    logic:{...logic,kind:message?'sinTV':'sinVideo',message,video:{src}},
+    material:{color:'#ffffff',opacity:1,skin:{mode:'color',src:'',repeat:{x:1,y:1},singleFace:'pz',faces:{}}}
+  });
+}
+
+function addSinDoor(objects,{id,floor,code='',roomId=null,activeFromFloor=0,decorationOnly=false,message}) {
+  const isRight=floor===100;
+  const isLeft=floor===200;
+  const offset=isRight?{x:16,y:-60,z:0}:isLeft?{x:-16,y:-60,z:0}:{x:0,y:0,z:0};
+  const rotationY=isRight?90:isLeft?-90:0;
+  const pos=sinDoorPosition(floor,offset);
+  const size=floor===300?{x:4.8,y:7.2,z:2.2}:{x:3.7,y:6.2,z:2};
+  addWorldObject(objects,'sinOriginalDoorPrefab',{
+    id,
+    name:decorationOnly?`第 ${floor} 層裝飾門`:`第 ${floor} 層密碼門`,
+    position:pos,
+    rotation:{x:0,y:rotationY,z:0},
+    size,
+    flags:{interactive:!decorationOnly,collidable:!decorationOnly},
+    logic:{kind:decorationOnly?'sinDecorationDoor':'sinDoor',loadArea:'stairs',loadFloor:floor,loadLead:50,unloadBehind:60,floor,accessCode:code,roomId,activeFromFloor,interactRadius:floor===300?7:3,message:message||`第 ${floor} 層門`},
+    material:{color:floor===300?'#f1d96f':'#d6c38e',opacity:1,skin:{mode:'color',src:'',repeat:{x:1,y:1},singleFace:'pz',faces:{}}}
+  });
+  if(!decorationOnly){
+    addWorldObject(objects,'sinPortalPrefab',{
+      id:`${id}_portal`,
+      name:'Sin Tower 密碼門光環',
+      position:{x:pos.x,y:pos.y+1.6,z:pos.z+.35},
+      rotation:{x:90,y:rotationY,z:0},
+      size:{x:5.2,y:5.2,z:.42},
+      flags:{interactive:false,trigger:false,collidable:false},
+      logic:{kind:'sinDoorPortal',loadArea:'stairs',loadFloor:floor,loadLead:50,unloadBehind:60,floor},
+      material:{color:'#f6d978',opacity:.9,skin:{mode:'color',src:'',repeat:{x:1,y:1},singleFace:'pz',faces:{}}}
+    });
+  }
+}
+
+function addSinRoom(objects,{roomId,floor,title,bookText}){
+  const room=SIN_TOWER_ROOMS[roomId];
+  const baseX=room.base.x;
+  const baseZ=room.base.z;
+  const roomLogic={loadArea:'room',roomId};
+  addWorldObject(objects,'floor',{id:`${roomId}_floor`,name:`${title} 地板碰撞`,position:{x:baseX,y:-.12,z:baseZ},size:{x:86,y:.24,z:86},flags:{collidable:true},logic:{...roomLogic,kind:'sinRoomFloor'},material:{color:'#37332a',opacity:.82}});
+  addSinModel(objects,{id:`${roomId}_church`,name:`${title} 原作教堂模型`,src:SIN_TOWER_CHURCH_MODEL,position:{x:baseX,y:14,z:baseZ},rotation:{x:0,y:180,z:0},size:{x:82,y:38,z:82},type:'fbx',logic:roomLogic,tint:'#c7b087'});
+  addSinModel(objects,{id:`${roomId}_stele`,name:'房間石碑',src:SIN_TOWER_STELE_MODEL,position:{x:baseX+12,y:5,z:baseZ-18},rotation:{x:0,y:22,z:0},size:{x:7,y:14,z:6},type:'fbx',flags:{interactive:true},logic:{...roomLogic,kind:'sinReading',title:'石碑',text:bookText||title,message:'石碑上刻著經文。',interactRadius:6}});
+  addWorldObject(objects,'sinBookPrefab',{
+    id:`${roomId}_book`,
+    name:floor===100?'桃園田野紀錄':'經文書',
+    position:{x:baseX-18,y:.75,z:baseZ+8},
+    rotation:{x:0,y:-18,z:0},
+    size:{x:2.8,y:1.1,z:2.1},
+    flags:{interactive:true},
+    logic:{...roomLogic,kind:'sinReading',title:floor===100?'桃園田野紀錄':'房間經文',text:bookText||`第 ${floor} 層房間的經文仍在生成。`,message:'翻閱書籍',interactRadius:4}
+  });
+  addSinVideo(objects,{id:`${roomId}_wall_video`,name:'房間牆面影片',src:SIN_TOWER_ROOM_VIDEO,position:{x:baseX+23,y:10,z:baseZ-7},rotation:{x:0,y:-62,z:0},size:{x:18,y:10,z:.12},message:'牆面影片正在播放。',logic:roomLogic});
+  addSinVideo(objects,{id:`${roomId}_monk_video`,name:'僧侶祈禱中心影片',src:SIN_TOWER_MONK_VIDEO,position:{x:baseX+20,y:4.8,z:baseZ+2},rotation:{x:0,y:180,z:0},size:{x:10,y:6,z:.12},message:'祈禱中心的影像被壓在牆面上。',logic:roomLogic});
+  addWorldObject(objects,'sinPortalPrefab',{
+    id:`${roomId}_exit`,
+    name:'返回塔梯的傳送門',
+    position:{x:baseX-28,y:5.2,z:baseZ-4},
+    rotation:{x:90,y:108,z:0},
+    size:{x:7.6,y:7.6,z:.7},
+    flags:{interactive:true,collidable:false,trigger:true},
+    logic:{...roomLogic,kind:'sinExit',roomId,floor,message:'返回樓梯',interactRadius:6},
+    material:{color:'#f2d37c',opacity:1,skin:{mode:'color',src:'',repeat:{x:1,y:1},singleFace:'pz',faces:{}}}
+  });
+  const center={x:baseX+20,z:baseZ+2};
+  for(let i=0;i<12;i++){
+    const angle=(Math.PI*2*i/12)+Math.PI*.08;
+    addWorldObject(objects,'sinMonkPrefab',{
+      id:`${roomId}_monk_${i}`,
+      name:'祈禱僧侶',
+      position:{x:center.x+Math.cos(angle)*8.2,y:1.04,z:center.z+Math.sin(angle)*8.2},
+      rotation:{x:0,y:180-(angle/DEG),z:0},
+      size:{x:1.35,y:2.2,z:1.35},
+      flags:{interactive:true,collidable:false},
+      logic:{...roomLogic,kind:'sinMonk',message:'僧侶沒有回頭，只把聲音交給房間。'}
+    });
+  }
+}
+
 function createDefaultWorld(){
   const objects=[];
-  const floor=makeWorldObject('floor',{id:'floor_main',name:'主地板',size:{x:16,y:.2,z:16},transform:{position:{x:0,y:-.1,z:0},rotation:{x:0,y:0,z:0},scale:{x:1,y:1,z:1}}});
-  const spawnPoint=makeWorldObject('spawn',{id:'spawn_player',name:'玩家出生點',transform:{position:{x:0,y:.6,z:4},rotation:{x:0,y:0,z:0},scale:{x:1,y:1,z:1}},logic:{message:'玩家起點'}});
-  const wallA=makeWorldObject('wall',{id:'wall_back',name:'後牆',transform:{position:{x:0,y:1.25,z:-5},rotation:{x:0,y:0,z:0},scale:{x:1,y:1,z:1}}});
-  const wallB=makeWorldObject('wall',{id:'wall_left',name:'側牆',size:{x:.25,y:2.5,z:5},transform:{position:{x:-5,y:1.25,z:-1.5},rotation:{x:0,y:0,z:0},scale:{x:1,y:1,z:1}}});
-  const platform=makeWorldObject('platform',{id:'platform_sample',name:'抬高平台',transform:{position:{x:3,y:.18,z:0},rotation:{x:0,y:0,z:0},scale:{x:1,y:1,z:1}}});
-  const crate=makeWorldObject('destructible',{id:'crate_sample',name:'可破壞箱子',transform:{position:{x:-2,y:.5,z:0},rotation:{x:0,y:0,z:0},scale:{x:1,y:1,z:1}},logic:{health:3,message:'箱子已破壞'}});
-  const trigger=makeWorldObject('trigger',{id:'trigger_sample',name:'訊息觸發區',transform:{position:{x:0,y:.18,z:-2.4},rotation:{x:0,y:0,z:0},scale:{x:1,y:1,z:1}},logic:{message:'進入觸發區'}});
-  const sign=makeWorldObject('textSign',{id:'sign_sample',name:'文字牌',transform:{position:{x:2.8,y:.9,z:-3.2},rotation:{x:0,y:0,z:0},scale:{x:1,y:1,z:1}},logic:{text:'新遊戲',message:'可互動文字牌'}});
-  objects.push(floor,spawnPoint,wallA,wallB,platform,crate,trigger,sign);
+  addWorldObject(objects,'spawn',{id:'spawn_player',name:'玩家出生點',position:sinPlayerPositionForFloor(0,0),logic:{message:'Sin Tower 起點'}});
+  for(let i=0;i<=330;i++){
+    const pos=sinTiltPosition({x:0,y:i*SIN_STEP_HEIGHT,z:-i*SIN_STEP_DEPTH});
+    addWorldObject(objects,'sinStairStepPrefab',{
+      id:`sin_step_${String(i).padStart(3,'0')}`,
+      name:`Sin Tower 階梯 ${i}`,
+      position:pos,
+      rotation:{x:SIN_STAIR_TILT_DEGREES,y:0,z:0},
+      size:{x:12,y:SIN_STEP_HEIGHT,z:SIN_STEP_DEPTH},
+      flags:{collidable:true},
+      logic:{kind:'sinStep',floor:i},
+      material:{color:'#ffffff',opacity:1,skin:{mode:'repeat',src:SIN_TOWER_STAIR_TEXTURE,repeat:{x:2,y:1},singleFace:'pz',faces:{}}}
+    });
+  }
+  for(let i=0;i<12;i++){
+    const floor=18+i*25;
+    const side=i%2?-1:1;
+    const p=sinFloorPosition(floor);
+    const src=SIN_TOWER_BUILDING_MODELS[i%SIN_TOWER_BUILDING_MODELS.length];
+    addSinModel(objects,{id:`sin_city_${i}`,name:'樓梯旁建築群',src,type:'gltf',position:{x:side*(26+(i%3)*8),y:p.y+18,z:p.z-18},rotation:{x:0,y:side>0?-70:70,z:0},size:{x:30,y:42,z:30},fitSize:{x:30,y:42,z:30},logic:{loadArea:'stairs',loadFloor:floor,loadLead:14,unloadBehind:90}});
+  }
+  [42,92,142,192,242,292].forEach((floor,index)=>{
+    const p=sinFloorPosition(floor);
+    const src=SIN_TOWER_STAIR_VIDEOS[index%SIN_TOWER_STAIR_VIDEOS.length];
+    addSinVideo(objects,{id:`sin_girl_tv_${floor}`,name:`樓梯影像 ${floor}`,src,position:{x:index%2?18:-18,y:p.y+23,z:p.z-5},rotation:{x:0,y:index%2?-66:66,z:0},size:{x:12,y:8,z:.12},message:`第 ${floor} 層附近的影像正在播放。`,logic:{loadArea:'stairs',loadFloor:floor,loadLead:22,unloadBehind:70}});
+  });
+  [24,48,72,118,146,174,218,258,286].forEach((floor,index)=>{
+    const p=sinFloorPosition(floor);
+    const x=index%3===0?0:(index%2?-5.4:5.4);
+    addWorldObject(objects,'sinMonkPrefab',{
+      id:`sin_stair_monk_${floor}`,
+      name:'樓梯僧侶',
+      position:{x,y:p.y+1.05,z:p.z},
+      rotation:{x:SIN_STAIR_TILT_DEGREES,y:index%2?210:150,z:0},
+      size:{x:1.2,y:2.1,z:1.2},
+      flags:{interactive:false,collidable:false},
+      logic:{kind:'sinStairMonk',loadArea:'stairs',loadFloor:floor,loadLead:18,unloadBehind:55,floor,message:'僧侶撞上主角，主角形體產生變化。'}
+    });
+  });
+  [34,86,132,188,236,276].forEach((floor,index)=>{
+    const p=sinFloorPosition(floor);
+    const src=SIN_TOWER_PILLAR_MODELS[index%SIN_TOWER_PILLAR_MODELS.length];
+    addSinModel(objects,{id:`sin_pillar_${floor}`,name:'倒在樓梯上的柱子',src,type:'fbx',position:{x:index%2?-2.8:2.8,y:p.y+1.1,z:p.z},rotation:{x:SIN_STAIR_TILT_DEGREES+85,y:index%2?32:-28,z:index%2?8:-10},size:{x:2.6,y:2.6,z:13},fitSize:{x:2.6,y:2.6,z:13},flags:{collidable:true},logic:{kind:'sinPillar',loadArea:'stairs',loadFloor:floor,loadLead:18,unloadBehind:35,message:'倒塌柱子阻擋了塔梯。'}});
+  });
+  addSinDoor(objects,{id:'sin_door_100',floor:100,decorationOnly:true,activeFromFloor:50,message:'第 100 層側門在原作目前是裝飾門。'});
+  addSinDoor(objects,{id:'sin_door_200',floor:200,decorationOnly:true,activeFromFloor:150,message:'第 200 層側門在原作目前是裝飾門。'});
+  addSinDoor(objects,{id:'sin_door_300',floor:300,code:'C67D',roomId:'room300',activeFromFloor:250,message:'第 300 層門：C67D。'});
+  addSinRoom(objects,{roomId:'room100',floor:100,title:'第一房間｜田野紀錄',bookText:SIN_TOWER_BOOK_TEXT});
+  addSinRoom(objects,{roomId:'room200',floor:200,title:'第二房間｜祈禱中心',bookText:'雨林聲像被關進石牆後方。僧侶圍著中心坐下，聲音不再向外傳播，只在房間裡反覆撞牆。'});
+  addSinRoom(objects,{roomId:'room300',floor:300,title:'第三房間｜終端經文',bookText:'C67D 被輸入後，玩家被送入原作的戰損教堂、石碑、祈禱僧侶、影片牆與書籍配置。'});
   return {schema:'template.world',version:1,settings:{gridSize:.5,snap:true},objects};
 }
 
@@ -353,11 +646,11 @@ function createDefaultUI(){
     version:1,
     settings:{activeScreen:'game'},
     elements:[
-      makeUIElement('gameFrame',{id:'ui_frame',name:'遊戲框',x:6,y:6,w:88,h:88,z:1,bgColor:'rgba(0,0,0,0)',borderColor:'rgba(246,196,83,.42)',radius:8}),
-      makeUIElement('score',{id:'ui_score',name:'分數',x:3,y:3,w:15,h:5,z:20,text:'分數',fontSize:16,bgColor:'rgba(7,16,24,.72)',bind:'score'}),
-      makeUIElement('statusBar',{id:'ui_health',name:'生命欄',x:3,y:9,w:18,h:7,z:20,text:'生命',fontSize:12,bgColor:'rgba(7,16,24,.72)',bind:'health'}),
-      makeUIElement('text',{id:'ui_message',name:'訊息',x:50,y:84,w:34,h:6,z:20,text:'',fontSize:15,bgColor:'rgba(7,16,24,.72)',bind:'message'}),
-      makeUIElement('controlButton',{id:'ui_action',name:'互動按鈕',x:85,y:78,w:10,h:11,z:30,text:'互動',fontSize:16,bgColor:'rgba(246,196,83,.86)',color:'#1c1504',bind:'action'}),
+      makeUIElement('gameFrame',{id:'ui_frame',name:'遊戲框',x:5,y:5,w:90,h:90,z:1,bgColor:'rgba(0,0,0,0)',borderColor:'rgba(246,196,83,.32)',radius:6,visible:false}),
+      makeUIElement('score',{id:'ui_score',name:'樓層',x:3,y:3,w:16,h:5,z:20,text:'樓層',fontSize:16,bgColor:'rgba(7,16,24,.72)',bind:'score'}),
+      makeUIElement('statusBar',{id:'ui_health',name:'穩定度',x:3,y:9,w:18,h:7,z:20,text:'穩定度',fontSize:12,bgColor:'rgba(7,16,24,.72)',bind:'health'}),
+      makeUIElement('text',{id:'ui_message',name:'訊息',x:34,y:84,w:42,h:6,z:20,text:'',fontSize:15,bgColor:'rgba(7,16,24,.76)',bind:'message'}),
+      makeUIElement('controlButton',{id:'ui_action',name:'互動按鈕',x:85,y:78,w:10,h:11,z:30,text:'互動',fontSize:16,bgColor:'rgba(246,196,83,.86)',color:'#1c1504',bind:'action',visible:false}),
       makeUIElement('loadingPanel',{id:'ui_loading',screen:'loading',name:'讀取面板',x:32,y:40,w:36,h:18,z:20,text:'讀取中',fontSize:24,bgColor:'rgba(17,24,39,.88)'}),
       makeUIElement('resultPanel',{id:'ui_result',screen:'results',name:'結算面板',x:31,y:38,w:38,h:24,z:20,text:'結算',fontSize:24,bgColor:'rgba(17,24,39,.88)'})
     ]
@@ -479,11 +772,14 @@ class WorldRuntime{
     this.app=app;
     this.scene=app.scene;
     this.textureBank=app.textureBank;
+    this.loader=new GLTFLoader();
+    this.fbxLoader=new FBXLoader();
     this.root=new THREE.Group();
     this.root.name='WorldRuntime';
     this.scene.add(this.root);
     this.data=createDefaultWorld();
     this.meshes=new Map();
+    this.modelCache=new Map();
     this.colliders=[];
     this.triggers=[];
     this.spawnPoints=[];
@@ -565,7 +861,9 @@ class WorldRuntime{
       const root=this.meshes.get(object.id);
       if(!root) continue;
       const destroyed=this.destroyedIds.has(object.id);
-      root.visible=this.editorMode||!destroyed;
+      const inactiveRoom=this.isInactiveRoomObject(object);
+      const inactiveStair=this.isInactiveStairObject(object);
+      root.visible=this.editorMode||(!destroyed&&!object.flags.spawn&&!inactiveRoom&&!inactiveStair);
       root.traverse(child=>{
         if(child.material){
           const mats=Array.isArray(child.material)?child.material:[child.material];
@@ -575,6 +873,7 @@ class WorldRuntime{
           }
         }
       });
+      if(inactiveRoom||inactiveStair) continue;
       if(object.flags.spawn) this.spawnPoints.push({object,root});
       if(object.flags.trigger) this.triggers.push({object,root,inside:false});
       if(object.flags.collidable&&!destroyed){
@@ -614,6 +913,35 @@ class WorldRuntime{
     root.rotation.set((r.x||0)*DEG,(r.y||0)*DEG,(r.z||0)*DEG);
     return root;
   }
+  isInactiveRoomObject(object){
+    const logic=object.logic||{};
+    if(logic.loadArea!=='room') return false;
+    const sin=this.app.sinTower;
+    return !sin||sin.area!=='room'||sin.activeRoom!==logic.roomId;
+  }
+  isInactiveStairObject(object){
+    const logic=object.logic||{};
+    if(logic.loadArea!=='stairs') return false;
+    const sin=this.app.sinTower;
+    if(!sin||sin.area!=='stairs') return true;
+    const floor=toNumber(logic.loadFloor,logic.floor);
+    if(!Number.isFinite(floor)) return false;
+    const lead=toNumber(logic.loadLead,35);
+    const behind=toNumber(logic.unloadBehind,90);
+    return sin.currentFloor<floor-lead||sin.currentFloor>floor+behind;
+  }
+  createDeferredGroup(object,size){
+    const group=new THREE.Group();
+    group.userData.worldObjectId=object.id;
+    const marker=new THREE.Mesh(
+      new THREE.BoxGeometry(Math.max(.1,size.x),Math.max(.1,size.y),Math.max(.1,size.z)),
+      new THREE.MeshBasicMaterial({visible:false})
+    );
+    marker.userData.worldObjectId=object.id;
+    marker.userData.collider=false;
+    group.add(marker);
+    return group;
+  }
   scaledSize(object){
     return {
       x:Math.max(.02,object.size.x*object.transform.scale.x),
@@ -623,6 +951,9 @@ class WorldRuntime{
   }
   createMesh(object){
     const size=this.scaledSize(object);
+    if((this.isInactiveRoomObject(object)||this.isInactiveStairObject(object))&&(object.logic?.model?.src||object.logic?.video?.src)) return this.createDeferredGroup(object,size);
+    if(object.logic?.video?.src) return this.createVideoPlane(object,size);
+    if(object.logic?.model?.src) return this.createModelGroup(object,size);
     const parts=this.prefabParts(object.type,size);
     if(parts) return this.createPrefabGroup(object,parts);
     let geometry;
@@ -640,14 +971,144 @@ class WorldRuntime{
     mesh.userData.worldObjectId=object.id;
     return mesh;
   }
+  createVideoPlane(object,size){
+    const group=new THREE.Group();
+    group.userData.worldObjectId=object.id;
+    if(object.flags.interactive||object.flags.collidable){
+      const collider=new THREE.Mesh(
+        new THREE.BoxGeometry(size.x,size.y,Math.max(.08,size.z)),
+        new THREE.MeshBasicMaterial({visible:false})
+      );
+      collider.userData.worldObjectId=object.id;
+      collider.userData.collider=true;
+      group.add(collider);
+    }
+    const video=document.createElement('video');
+    video.src=object.logic.video.src;
+    video.loop=true;
+    video.muted=true;
+    video.playsInline=true;
+    video.preload='auto';
+    video.autoplay=true;
+    const texture=new THREE.VideoTexture(video);
+    texture.colorSpace=THREE.SRGBColorSpace;
+    texture.minFilter=THREE.LinearFilter;
+    texture.magFilter=THREE.LinearFilter;
+    const mesh=new THREE.Mesh(
+      new THREE.PlaneGeometry(size.x,size.y),
+      new THREE.MeshBasicMaterial({map:texture,side:THREE.DoubleSide,transparent:true,opacity:object.material.opacity??1})
+    );
+    mesh.userData.worldObjectId=object.id;
+    mesh.userData.collider=false;
+    group.add(mesh);
+    const play=()=>video.play().catch(()=>{});
+    play();
+    window.addEventListener('pointerdown',play,{once:true});
+    window.addEventListener('keydown',play,{once:true});
+    return group;
+  }
+  createModelGroup(object,size){
+    const group=new THREE.Group();
+    group.userData.worldObjectId=object.id;
+    const collider=new THREE.Mesh(
+      new THREE.BoxGeometry(size.x,size.y,size.z),
+      new THREE.MeshBasicMaterial({visible:false})
+    );
+    collider.userData.worldObjectId=object.id;
+    collider.userData.collider=true;
+    group.add(collider);
+    this.loadWorldModelInto(group,object,size);
+    return group;
+  }
+  cloneScene(scene){
+    try{return SkeletonUtils.clone(scene);}
+    catch(_){return scene.clone(true);}
+  }
+  installWorldModel(holder,scene,object,size){
+    const model=object.logic?.model||{};
+    const loaded=this.cloneScene(scene);
+    loaded.name='SinTowerAssetModel';
+    loaded.traverse(child=>{
+      child.userData.worldObjectId=object.id;
+      child.userData.collider=false;
+      if(child.isMesh){
+        child.frustumCulled=false;
+        if(child.material){
+          const mats=Array.isArray(child.material)?child.material:[child.material];
+          const cloned=mats.map(mat=>{
+            const copy=mat.clone();
+            copy.side=THREE.DoubleSide;
+            if(copy.emissive) copy.emissive.set('#000000');
+            if(model.tint&&copy.color) copy.color.set(model.tint);
+            if(copy.map) copy.map.colorSpace=THREE.SRGBColorSpace;
+            copy.needsUpdate=true;
+            return copy;
+          });
+          child.material=Array.isArray(child.material)?cloned:cloned[0];
+        }
+      }
+    });
+    const shell=new THREE.Group();
+    shell.userData.worldObjectId=object.id;
+    shell.userData.collider=false;
+    const fitBox=new THREE.Box3().setFromObject(loaded);
+    const sourceSize=fitBox.getSize(new THREE.Vector3());
+    const fitSize=model.fitSize||size;
+    const fitScale=model.fitToSize===false
+      ? 1
+      : Math.min(
+          fitSize.x/Math.max(.001,sourceSize.x),
+          fitSize.y/Math.max(.001,sourceSize.y),
+          fitSize.z/Math.max(.001,sourceSize.z)
+        );
+    const scale=fitScale*toNumber(model.scale,1);
+    loaded.scale.multiplyScalar(scale);
+    loaded.updateMatrixWorld(true);
+    const centeredBox=new THREE.Box3().setFromObject(loaded);
+    const center=centeredBox.getCenter(new THREE.Vector3());
+    loaded.position.sub(center);
+    shell.add(loaded);
+    const rotation=model.rotation||{};
+    const position=model.position||{};
+    shell.rotation.set((rotation.x||0)*DEG,(rotation.y||0)*DEG,(rotation.z||0)*DEG);
+    shell.position.set(toNumber(position.x,0),toNumber(position.y,0),toNumber(position.z,0));
+    holder.add(shell);
+  }
+  loadWorldModelInto(holder,object,size){
+    const model=object.logic?.model||{};
+    const src=model.src;
+    const type=model.type||src.split('.').pop()?.toLowerCase();
+    if(!src) return;
+    const cached=this.modelCache.get(src);
+    if(cached){
+      this.installWorldModel(holder,cached.scene,object,size);
+      return;
+    }
+    const done=(scene,animations=[])=>{
+      this.modelCache.set(src,{scene,animations});
+      if(!this.meshes.has(object.id)&&this.meshes.size) return;
+      this.installWorldModel(holder,scene,object,size);
+    };
+    const fail=err=>console.warn('世界模型載入失敗',src,err);
+    if(type==='fbx'){
+      this.fbxLoader.load(src,object3d=>done(object3d,object3d.animations||[]),undefined,fail);
+      return;
+    }
+    this.loader.load(src,gltf=>{
+      const scene=gltf.scene||gltf.scenes?.[0];
+      if(scene) done(scene,gltf.animations||[]);
+    },undefined,fail);
+  }
   createPrefabGroup(object,parts){
     const group=new THREE.Group();
     group.userData.worldObjectId=object.id;
     for(const part of parts){
       let geometry;
       if(part.shape==='cone') geometry=new THREE.ConeGeometry(part.size.x*.5,part.size.y,part.sides||4);
+      else if(part.shape==='cylinder') geometry=new THREE.CylinderGeometry(part.radiusTop??part.size.x*.5,part.radiusBottom??part.size.x*.5,part.size.y,part.sides||24);
+      else if(part.shape==='torus') geometry=new THREE.TorusGeometry(part.radius||part.size.x*.5,part.tube||Math.max(.03,part.size.y*.5),part.radialSegments||10,part.tubularSegments||48);
       else geometry=new THREE.BoxGeometry(part.size.x,part.size.y,part.size.z);
-      const material=part.shape==='cone'
+      const material=part.shape==='cone'||part.shape==='cylinder'||part.shape==='torus'
         ? this.createMaterial(object,null,{color:part.color})
         : this.createBoxMaterials(object,part.size,part.color);
       const mesh=new THREE.Mesh(geometry,material);
@@ -737,6 +1198,85 @@ class WorldRuntime{
         {size:{x:px,y:pillarH,z:pz},position:{x:sx,y:-h*.5+pillarH*.5,z:sz},color:'#506454'}
       ];
     }
+    if(type==='sinDoorPrefab'){
+      const postW=Math.max(t*2.4,x*.12);
+      const topH=Math.max(t*2.2,h*.11);
+      return [
+        {size:{x:postW,y:h,z:z*.62},position:{x:-x*.42,y:0,z:0},color:'#6a5635'},
+        {size:{x:postW,y:h,z:z*.62},position:{x:x*.42,y:0,z:0},color:'#6a5635'},
+        {size:{x:x,y:topH,z:z*.68},position:{x:0,y:h*.42,z:0},color:'#8e7543'},
+        {shape:'torus',radius:Math.min(x,h)*.28,tube:Math.max(.025,Math.min(x,h)*.028),size:{x:1,y:1,z:1},position:{x:0,y:h*.02,z:z*.08},rotation:{x:90,y:0,z:0},color:'#f3d86c',collider:false},
+        {shape:'cylinder',radiusTop:Math.min(x,h)*.21,radiusBottom:Math.min(x,h)*.21,size:{x:1,y:Math.max(.03,z*.12),z:1},position:{x:0,y:h*.02,z:z*.11},rotation:{x:90,y:0,z:0},sides:36,color:'#dff6ff',collider:false},
+        {size:{x:x*.52,y:h*.08,z:z*.22},position:{x:0,y:-h*.48,z:z*.08},color:'#c4b17a',collider:false}
+      ];
+    }
+    if(type==='sinPortalPrefab'){
+      const radius=Math.min(x,h)*.42;
+      return [
+        {shape:'torus',radius,tube:Math.max(.045,Math.min(x,h)*.025),size:{x:1,y:1,z:1},position:{x:0,y:0,z:0},rotation:{x:0,y:0,z:0},color:'#f6d978',collider:false},
+        {shape:'torus',radius:radius*.72,tube:Math.max(.035,Math.min(x,h)*.018),size:{x:1,y:1,z:1},position:{x:0,y:0,z:.06},rotation:{x:0,y:0,z:0},color:'#fff1a8',collider:false},
+        {shape:'cylinder',radiusTop:radius*.56,radiusBottom:radius*.56,size:{x:1,y:Math.max(.04,z*.38),z:1},position:{x:0,y:0,z:.09},rotation:{x:90,y:0,z:0},sides:48,color:'#dff6ff',collider:false},
+        {size:{x:x*.12,y:h*.92,z:z*.2},position:{x:-x*.48,y:0,z:0},color:'#f6d978',collider:false},
+        {size:{x:x*.12,y:h*.92,z:z*.2},position:{x:x*.48,y:0,z:0},color:'#f6d978',collider:false}
+      ];
+    }
+    if(type==='sinRoomPrefab'){
+      const wallT=Math.max(.16,Math.min(x,z)*.045);
+      return [
+        {size:{x,y:wallT,z},position:{x:0,y:-h*.5+wallT*.5,z:0},color:'#555f69'},
+        {size:{x,y:h,z:wallT},position:{x:0,y:0,z:-z*.5+wallT*.5},color:'#6f7780'},
+        {size:{x:wallT,y:h,z},position:{x:-x*.5+wallT*.5,y:0,z:0},color:'#626b75'},
+        {size:{x:wallT,y:h,z},position:{x:x*.5-wallT*.5,y:0,z:0},color:'#626b75'},
+        {size:{x:x*.28,y:h*.82,z:wallT},position:{x:-x*.36,y:-h*.04,z:z*.5-wallT*.5},color:'#6f7780'},
+        {size:{x:x*.28,y:h*.82,z:wallT},position:{x:x*.36,y:-h*.04,z:z*.5-wallT*.5},color:'#6f7780'},
+        {size:{x:wallT*1.2,y:h*.86,z:wallT*1.2},position:{x:-x*.34,y:-h*.06,z:-z*.32},color:'#888075'},
+        {size:{x:wallT*1.2,y:h*.72,z:wallT*1.2},position:{x:x*.31,y:-h*.13,z:-z*.28},color:'#888075'},
+        {size:{x:x*.32,y:wallT,z:z*.22},position:{x:0,y:h*.36,z:-z*.42},rotation:{x:0,y:16,z:0},color:'#9a8775',collider:false}
+      ];
+    }
+    if(type==='sinBookPrefab'){
+      return [
+        {size:{x:x,y:h*.34,z:z},position:{x:0,y:-h*.18,z:0},color:'#7b6044'},
+        {size:{x:x*.88,y:h*.16,z:z*.72},position:{x:0,y:h*.08,z:0},color:'#efe3c3'},
+        {size:{x:x*.04,y:h*.2,z:z*.76},position:{x:0,y:h*.13,z:0},color:'#b0915a',collider:false},
+        {size:{x:x*.76,y:h*.05,z:z*.05},position:{x:0,y:h*.22,z:-z*.18},color:'#3c2b21',collider:false},
+        {size:{x:x*.68,y:h*.05,z:z*.05},position:{x:0,y:h*.22,z:z*.12},color:'#3c2b21',collider:false}
+      ];
+    }
+    if(type==='sinTVPrefab'){
+      return [
+        {size:{x:x,y:h,z:z},position:{x:0,y:0,z:0},color:'#202833'},
+        {size:{x:x*.78,y:h*.62,z:z*.08},position:{x:0,y:h*.08,z:z*.52},color:'#8ee7ff',collider:false},
+        {size:{x:x*.52,y:h*.08,z:z*.42},position:{x:0,y:-h*.58,z:0},color:'#3b4550'},
+        {size:{x:x*.14,y:h*.32,z:z*.14},position:{x:-x*.34,y:h*.5,z:0},rotation:{x:0,y:0,z:-18},color:'#cbd3d8',collider:false},
+        {size:{x:x*.14,y:h*.32,z:z*.14},position:{x:x*.34,y:h*.5,z:0},rotation:{x:0,y:0,z:18},color:'#cbd3d8',collider:false}
+      ];
+    }
+    if(type==='sinMonkPrefab'){
+      return [
+        {shape:'cylinder',radiusTop:x*.22,radiusBottom:x*.3,size:{x,y:h*.72,z},position:{x:0,y:-h*.16,z:0},sides:18,color:'#8b7358'},
+        {shape:'cylinder',radiusTop:x*.18,radiusBottom:x*.18,size:{x,y:h*.2,z},position:{x:0,y:h*.31,z:0},sides:18,color:'#bfa989'},
+        {shape:'cone',size:{x:x*.72,y:h*.36,z:z*.72},position:{x:0,y:-h*.02,z:0},sides:18,color:'#b28b63',collider:false},
+        {size:{x:x*.16,y:h*.34,z:z*.12},position:{x:-x*.34,y:h*.02,z:z*.08},rotation:{x:0,y:0,z:22},color:'#d6c3a4',collider:false},
+        {size:{x:x*.16,y:h*.34,z:z*.12},position:{x:x*.34,y:h*.02,z:z*.08},rotation:{x:0,y:0,z:-22},color:'#d6c3a4',collider:false}
+      ];
+    }
+    if(type==='sinAltarPrefab'){
+      return [
+        {shape:'cylinder',radiusTop:x*.34,radiusBottom:x*.42,size:{x,y:h*.36,z},position:{x:0,y:-h*.26,z:0},sides:32,color:'#6f5d72'},
+        {shape:'torus',radius:x*.34,tube:x*.025,size:{x:1,y:1,z:1},position:{x:0,y:h*.08,z:0},rotation:{x:90,y:0,z:0},color:'#f6c453',collider:false},
+        {shape:'cylinder',radiusTop:x*.2,radiusBottom:x*.2,size:{x,y:h*.12,z},position:{x:0,y:h*.08,z:0},sides:32,color:'#dff6ff',collider:false},
+        {size:{x:x*.16,y:h*.9,z:z*.16},position:{x:0,y:h*.22,z:0},color:'#d0b87a',collider:false}
+      ];
+    }
+    if(type==='sinCityPrefab'){
+      const parts=[{size:{x:x*.86,y:h,z:z*.82},position:{x:0,y:0,z:0},color:'#65727d'}];
+      for(let i=0;i<4;i++){
+        parts.push({size:{x:x*.18,y:h*.045,z:z*.86},position:{x:-x*.27+i*x*.18,y:-h*.18+i*h*.17,z:z*.43},color:'#d2c17b',collider:false});
+      }
+      parts.push({size:{x:x*.92,y:h*.08,z:z*.9},position:{x:0,y:h*.54,z:0},color:'#3c4854'});
+      return parts;
+    }
     return null;
   }
   createMaterial(object,src=null,{repeat={x:1,y:1},wrap=false,color=null}={}){
@@ -815,13 +1355,15 @@ class WorldRuntime{
       const root=this.meshes.get(object.id);
       if(!root) continue;
       const dist=root.position.distanceTo(position);
-      if(dist<1.9&&dist<bestDist){best={object,root};bestDist=dist;}
+      const radius=Math.max(1.9,toNumber(object.logic?.interactRadius,object.type==='sinDoorPrefab'?2.8:1.9));
+      if(dist<radius&&dist<bestDist){best={object,root};bestDist=dist;}
     }
     if(!best){
       this.app.showMessage('附近沒有可互動目標');
       return;
     }
     const {object}=best;
+    if(this.app.sinTower?.handleWorldInteraction(object)) return;
     if(object.flags.destructible){
       object.logic.health=Math.max(0,(object.logic.health||1)-1);
       if(object.logic.health<=0){
@@ -843,12 +1385,15 @@ class ActorRuntime{
     this.app=app;
     this.scene=app.scene;
     this.loader=new GLTFLoader();
+    this.fbxLoader=new FBXLoader();
     this.data=createDefaultActors();
     this.root=new THREE.Group();
     this.root.name='ActorRuntimeNPCs';
     this.scene.add(this.root);
     this.npcMeshes=new Map();
     this.gltfCache=new Map();
+    this.fbxCache=new Map();
+    this.modelMixers=new Map();
     this.spriteStates=new Map();
     this.playerAction='idle';
   }
@@ -878,6 +1423,9 @@ class ActorRuntime{
   rebuildNPCs(){
     this.root.clear();
     this.npcMeshes.clear();
+    for(const key of Array.from(this.modelMixers.keys())){
+      if(key!=='player') this.modelMixers.delete(key);
+    }
     for(const key of Array.from(this.spriteStates.keys())){
       if(key!=='player') this.spriteStates.delete(key);
     }
@@ -896,6 +1444,7 @@ class ActorRuntime{
   buildVisualInto(group,role,stateKey){
     group.clear();
     this.spriteStates.delete(stateKey);
+    this.modelMixers.delete(stateKey);
     const model=role.model||{};
     const scale=toNumber(model.scale,1);
     if(model.type==='spriteSequence' && model.sequence?.length){
@@ -906,11 +1455,15 @@ class ActorRuntime{
       this.spriteStates.set(stateKey,{sprite,role,frame:0,timer:0,action:'idle'});
       return;
     }
-    if(model.type==='gltf' && model.src){
+    if((model.type==='gltf'||model.type==='fbx') && model.src){
       const holder=new THREE.Group();
       holder.scale.setScalar(scale);
+      const rotation=model.rotation||{};
+      const position=model.position||{};
+      holder.rotation.set((rotation.x||0)*DEG,(rotation.y||0)*DEG,(rotation.z||0)*DEG);
+      holder.position.set(toNumber(position.x,0),toNumber(position.y,0),toNumber(position.z,0));
       group.add(holder);
-      this.loadGLTFInto(holder,model.src);
+      this.loadModelInto(holder,model,stateKey);
       return;
     }
     const geo=role.role==='player'
@@ -924,17 +1477,58 @@ class ActorRuntime{
   textureFromSource(src){
     return this.app.textureBank.texture(src,{repeat:{x:1,y:1},wrap:false});
   }
-  loadGLTFInto(holder,src){
+  cloneScene(scene){
+    try{return SkeletonUtils.clone(scene);}
+    catch(_){return scene.clone(true);}
+  }
+  installLoadedModel(holder,scene,animations,stateKey){
+    const clone=this.cloneScene(scene);
+    clone.traverse(child=>{
+      if(child.isMesh){
+        child.frustumCulled=false;
+        if(child.material){
+          const mats=Array.isArray(child.material)?child.material:[child.material];
+          for(const mat of mats){
+            mat.side=THREE.DoubleSide;
+            mat.needsUpdate=true;
+          }
+        }
+      }
+    });
+    holder.clear();
+    holder.add(clone);
+    if(animations?.length){
+      const mixer=new THREE.AnimationMixer(clone);
+      mixer.clipAction(animations[0]).play();
+      this.modelMixers.set(stateKey,mixer);
+    }
+  }
+  loadModelInto(holder,model,stateKey){
+    const src=model.src;
+    if(model.type==='fbx'){
+      if(this.fbxCache.has(src)){
+        const cached=this.fbxCache.get(src);
+        this.installLoadedModel(holder,cached.scene,cached.animations,stateKey);
+        return;
+      }
+      this.fbxLoader.load(src,object=>{
+        const cached={scene:object,animations:object.animations||[]};
+        this.fbxCache.set(src,cached);
+        this.installLoadedModel(holder,cached.scene,cached.animations,stateKey);
+      },undefined,err=>console.warn('FBX 模型載入失敗',err));
+      return;
+    }
     if(this.gltfCache.has(src)){
-      holder.add(this.gltfCache.get(src).clone(true));
+      const cached=this.gltfCache.get(src);
+      this.installLoadedModel(holder,cached.scene,cached.animations,stateKey);
       return;
     }
     this.loader.load(src,gltf=>{
       const scene=gltf.scene||gltf.scenes?.[0];
       if(!scene) return;
-      this.gltfCache.set(src,scene);
-      holder.clear();
-      holder.add(scene.clone(true));
+      const cached={scene,animations:gltf.animations||[]};
+      this.gltfCache.set(src,cached);
+      this.installLoadedModel(holder,cached.scene,cached.animations,stateKey);
     },undefined,err=>console.warn('3D 模型載入失敗',err));
   }
   setRoleModel(roleId,model){
@@ -945,6 +1539,7 @@ class ActorRuntime{
     this.saveLocal();
   }
   update(dt){
+    for(const mixer of this.modelMixers.values()) mixer.update(dt);
     const moving=this.app.input.movementVector();
     this.playerAction=(Math.abs(moving.forward)+Math.abs(moving.strafe))>0?'move':'idle';
     for(const [key,state] of this.spriteStates.entries()){
@@ -1095,8 +1690,12 @@ class UILayer{
   updateBindings(){
     for(const node of $$('[data-ui-bind]',this.stage)){
       const bind=node.dataset.uiBind;
-      if(bind==='score') node.textContent=`分數 ${this.app.game.score}`;
-      if(bind==='message') node.textContent=this.app.game.message||'';
+      const element=this.getElement(node.dataset.uiId);
+      if(bind==='score') node.textContent=`${element?.text||'分數'} ${this.app.game.score}`;
+      if(bind==='message'){
+        node.textContent=this.app.game.message||'';
+        node.style.opacity=this.app.game.message?String(element?.opacity??1):'0';
+      }
       if(bind==='health'){
         const fill=$('.game-ui-fill',node);
         if(fill) fill.style.width=`${clamp(this.app.game.health,0,100)}%`;
@@ -1122,6 +1721,7 @@ class InputController{
     this.pointer.dragging=false;
   }
   onKeyDown(event){
+    if(this.app.sinTower?.handleKeyDown(event)) return;
     if(event.shiftKey&&event.code==='KeyC'){
       event.preventDefault();
       this.clear();
@@ -1178,16 +1778,362 @@ class InputController{
   }
 }
 
+class SinTowerRuntime{
+  constructor(app){
+    this.app=app;
+    this.area='stairs';
+    this.activeRoom=null;
+    this.currentFloor=0;
+    this.lastStairPosition=new THREE.Vector3(0,SIN_PLAYER_CLEARANCE,0);
+    this.currentDoor=null;
+    this.allowedChars=['0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F'];
+    this.targetCode='0000';
+    this.enteredChars=['0','0','0','0'];
+    this.selectedIndex=0;
+    this.passwordTimeoutId=null;
+    this.movementFrozen=true;
+    this.targetX=0;
+    this.attachedMonks=0;
+    this.slowDebuff=0;
+    this.loadBucket=0;
+    this.passwordOverlay=this.buildPasswordOverlay();
+    this.readingOverlay=this.buildReadingOverlay();
+    this.introOverlay=this.buildIntroOverlay();
+  }
+  reset(){
+    this.area='stairs';
+    this.activeRoom=null;
+    this.currentFloor=0;
+    this.currentDoor=null;
+    this.targetX=0;
+    this.movementFrozen=true;
+    this.attachedMonks=0;
+    this.slowDebuff=0;
+    this.loadBucket=0;
+    this.closePassword();
+    this.closeReading();
+    this.showIntro();
+    this.applyPlayerTransformation();
+  }
+  update(dt=0){
+    if(this.area==='stairs'){
+      this.currentFloor=Math.max(0,Math.floor(Math.max(0,-this.app.player.position.z)/SIN_WORLD_FLOOR_DEPTH));
+      this.app.game.score=this.currentFloor;
+      const bucket=Math.floor(this.currentFloor/5);
+      if(bucket!==this.loadBucket){
+        this.loadBucket=bucket;
+        this.app.world.rebuild();
+      }
+      this.checkDoorAutoInteraction();
+      this.checkStairMonkCollisions();
+    }else{
+      const room=SIN_TOWER_ROOMS[this.activeRoom];
+      this.app.game.score=room?.floor||this.currentFloor;
+    }
+  }
+  showIntro(){
+    if(!this.introOverlay) return;
+    this.introOverlay.hidden=false;
+    this.introOverlay.classList.remove('is-fading');
+    const video=$('video',this.introOverlay);
+    if(video){
+      video.currentTime=0;
+      video.play?.().catch(()=>{});
+    }
+  }
+  beginStairRun(){
+    if(!this.movementFrozen) return;
+    this.movementFrozen=false;
+    if(this.introOverlay){
+      this.introOverlay.classList.add('is-fading');
+      setTimeout(()=>{this.introOverlay.hidden=true;},820);
+    }
+  }
+  updateStairPlayer(dt){
+    if(this.movementFrozen){
+      this.app.player.mesh.position.copy(this.app.player.position);
+      return;
+    }
+    const move=this.app.input.movementVector();
+    this.targetX=clamp(this.targetX+move.strafe*SIN_LATERAL_SPEED*dt,-SIN_MAX_X,SIN_MAX_X);
+    const player=this.app.player;
+    player.position.x+=(this.targetX-player.position.x)*Math.min(1,5*dt);
+    const speed=SIN_FORWARD_SPEED*Math.max(.08,1-this.slowDebuff);
+    player.position.z-=speed*dt;
+    player.position.y=sinStairPlaneY(player.position.z,SIN_PLAYER_CLEARANCE*Math.max(1,player.height/1.55));
+    player.mesh.position.copy(player.position);
+  }
+  checkDoorAutoInteraction(){
+    if(!this.passwordOverlay.hidden||this.currentDoor||this.movementFrozen) return;
+    for(const object of this.app.world.data.objects){
+      const logic=object.logic||{};
+      if(logic.kind!=='sinDoor'||logic.unlocked||this.app.world.destroyedIds.has(object.id)) continue;
+      if(this.currentFloor<toNumber(logic.activeFromFloor,0)) continue;
+      const root=this.app.world.meshes.get(object.id);
+      if(!root||!root.visible) continue;
+      const radius=toNumber(logic.interactRadius,6);
+      if(root.position.distanceTo(this.app.player.position)<=radius){
+        this.openDoor(object);
+        return;
+      }
+    }
+  }
+  checkStairMonkCollisions(){
+    if(this.area!=='stairs'||this.movementFrozen) return;
+    for(const object of this.app.world.data.objects){
+      const logic=object.logic||{};
+      if(logic.kind!=='sinStairMonk'||this.app.world.destroyedIds.has(object.id)) continue;
+      const root=this.app.world.meshes.get(object.id);
+      if(!root||!root.visible) continue;
+      const radius=Math.max(.9,this.app.player.radius+0.75);
+      if(root.position.distanceTo(this.app.player.position)<=radius){
+        this.attachMonk(object,root);
+        return;
+      }
+    }
+  }
+  attachMonk(object,root){
+    this.app.world.destroyedIds.add(object.id);
+    if(root) root.visible=false;
+    this.attachedMonks=clamp(this.attachedMonks+1,0,9);
+    this.slowDebuff=Math.min(.45,this.attachedMonks*.035);
+    this.applyPlayerTransformation();
+    this.app.showMessage(`僧侶附著：${this.attachedMonks}`);
+  }
+  applyPlayerTransformation(){
+    const level=clamp(Math.floor(this.attachedMonks),0,9);
+    const scaleMultiplier=Math.min(1+this.attachedMonks,10);
+    const rotationY=level>=3?180:90;
+    const role=this.app.actors?.getRole('player');
+    if(role){
+      role.model={
+        ...role.model,
+        type:'fbx',
+        src:`${SIN_TOWER_ASSET_BASE}dianosaur${level}_run.fbx`,
+        fileName:`dianosaur${level}_run.fbx`,
+        scale:.016*scaleMultiplier,
+        rotation:{x:0,y:rotationY,z:0},
+        position:{x:0,y:-.8*scaleMultiplier,z:0},
+        billboard:false
+      };
+      this.app.actors.rebuildPlayer();
+    }
+    this.app.player.radius=.35*Math.min(scaleMultiplier,3.2);
+    this.app.player.height=1.55*Math.min(scaleMultiplier,3.2);
+  }
+  handleWorldInteraction(object){
+    const logic=object.logic||{};
+    if(!logic.kind) return false;
+    if(logic.kind==='sinDoor'){
+      this.openDoor(object);
+      return true;
+    }
+    if(logic.kind==='sinDecorationDoor'){
+      this.app.showMessage(logic.message||object.name);
+      return true;
+    }
+    if(logic.kind==='sinExit'){
+      this.exitRoom();
+      return true;
+    }
+    if(logic.kind==='sinReading'){
+      this.openReading(logic.title||object.name,logic.text||logic.message||'');
+      return true;
+    }
+    if(logic.kind==='sinAltar'){
+      this.app.showMessage(logic.message||'祈禱中心正在發光。');
+      return true;
+    }
+    if(logic.kind==='sinTV'||logic.kind==='sinMonk'){
+      this.app.showMessage(logic.message||object.name);
+      return true;
+    }
+    return false;
+  }
+  openDoor(object){
+    const logic=object.logic||{};
+    const activeFrom=toNumber(logic.activeFromFloor,0);
+    if(this.currentFloor<activeFrom){
+      this.app.showMessage(`門尚未回應：需要接近第 ${activeFrom} 層。`);
+      return;
+    }
+    this.currentDoor=object;
+    const expected=String(logic.accessCode||'').toUpperCase();
+    if(!expected){
+      this.enterRoom(logic.roomId,logic.floor);
+      return;
+    }
+    this.targetCode=expected;
+    this.enteredChars=Array.from({length:expected.length},()=>this.allowedChars[0]);
+    this.selectedIndex=0;
+    $('[data-sin-password-title]',this.passwordOverlay).textContent=object.name||'密碼門';
+    this.updatePasswordDisplay();
+    this.passwordOverlay.hidden=false;
+    this.app.input.clear();
+    clearTimeout(this.passwordTimeoutId);
+    this.passwordTimeoutId=setTimeout(()=>{
+      this.closePassword();
+      this.app.showMessage('密碼輸入超時');
+    },30000);
+  }
+  adjustPassword(direction){
+    if(!this.enteredChars.length) return;
+    const current=this.enteredChars[this.selectedIndex]||'0';
+    let index=this.allowedChars.indexOf(current);
+    if(index<0) index=0;
+    index=(index+direction)%this.allowedChars.length;
+    if(index<0) index=this.allowedChars.length-1;
+    this.enteredChars[this.selectedIndex]=this.allowedChars[index];
+    this.updatePasswordDisplay();
+    this.checkPassword();
+  }
+  movePasswordSelection(delta){
+    if(!this.enteredChars.length) return;
+    this.selectedIndex=(this.selectedIndex+delta)%this.enteredChars.length;
+    if(this.selectedIndex<0) this.selectedIndex=this.enteredChars.length-1;
+    this.updatePasswordDisplay();
+  }
+  updatePasswordDisplay(){
+    const slots=$('[data-sin-password-slots]',this.passwordOverlay);
+    if(!slots) return;
+    slots.innerHTML=this.enteredChars.map((ch,index)=>`<div class="sin-slot${index===this.selectedIndex?' is-selected':''}">${escapeHTML(ch)}</div>`).join('');
+    const timer=$('[data-sin-password-timer]',this.passwordOverlay);
+    if(timer) timer.textContent='PASSWORD';
+  }
+  checkPassword(){
+    if(this.enteredChars.join('')!==this.targetCode) return;
+    const door=this.currentDoor;
+    if(door) door.logic.unlocked=true;
+    this.closePassword(false);
+    const logic=door?.logic||{};
+    setTimeout(()=>this.enterRoom(logic.roomId,logic.floor),260);
+  }
+  closePassword(resetDoor=true){
+    clearTimeout(this.passwordTimeoutId);
+    this.passwordTimeoutId=null;
+    if(this.passwordOverlay) this.passwordOverlay.hidden=true;
+    if(resetDoor) this.currentDoor=null;
+  }
+  enterRoom(roomId,floor){
+    const room=SIN_TOWER_ROOMS[roomId]||SIN_TOWER_ROOMS.room100;
+    this.lastStairPosition.copy(this.app.player.position);
+    this.area='room';
+    this.activeRoom=roomId;
+    this.currentFloor=toNumber(floor,room.floor);
+    this.movementFrozen=false;
+    if(this.introOverlay) this.introOverlay.hidden=true;
+    this.app.world.rebuild();
+    this.app.player.position.set(room.spawn.x,room.spawn.y,room.spawn.z);
+    this.app.player.mesh.position.copy(this.app.player.position);
+    this.app.cameraYaw=0;
+    this.app.cameraPitch=.16;
+    this.app.cameraDistance=11;
+    if(this.app.roomLight){
+      const base=room.base||{x:room.spawn.x,z:room.spawn.z};
+      this.app.roomLight.position.set(base.x,24,base.z+8);
+      this.app.roomLight.visible=true;
+    }
+    this.app.showMessage(`進入第 ${room.floor} 層房間`);
+  }
+  exitRoom(){
+    const room=SIN_TOWER_ROOMS[this.activeRoom];
+    const floor=Math.max(0,(room?.floor||this.currentFloor)-2);
+    const target=sinPlayerPositionForFloor(floor,0);
+    this.area='stairs';
+    this.activeRoom=null;
+    this.currentDoor=null;
+    this.targetX=target.x;
+    this.app.world.rebuild();
+    this.app.player.position.set(target.x,target.y,target.z);
+    this.app.player.mesh.position.copy(this.app.player.position);
+    this.app.cameraDistance=9;
+    this.app.cameraPitch=.24;
+    if(this.app.roomLight) this.app.roomLight.visible=false;
+    this.app.showMessage('回到塔梯');
+  }
+  buildPasswordOverlay(){
+    const overlay=document.createElement('div');
+    overlay.className='sin-overlay';
+    overlay.hidden=true;
+    overlay.innerHTML=`
+      <div class="sin-dialog sin-password-panel">
+        <h2 data-sin-password-title>密碼門</h2>
+        <div class="sin-slots" data-sin-password-slots></div>
+        <div class="sin-password-meta" data-sin-password-timer>PASSWORD</div>
+      </div>`;
+    document.body.appendChild(overlay);
+    return overlay;
+  }
+  buildReadingOverlay(){
+    const overlay=document.createElement('div');
+    overlay.className='sin-overlay';
+    overlay.hidden=true;
+    overlay.innerHTML=`
+      <div class="sin-dialog sin-reading">
+        <h2 data-sin-reading-title>紀錄</h2>
+        <div class="sin-text" data-sin-reading-text></div>
+        <div class="sin-actions">
+          <button type="button" class="primary" data-sin-reading-close>關閉</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    $('[data-sin-reading-close]',overlay).addEventListener('click',()=>this.closeReading());
+    return overlay;
+  }
+  buildIntroOverlay(){
+    const overlay=document.createElement('div');
+    overlay.className='sin-intro';
+    overlay.innerHTML=`
+      <div class="sin-intro-fallback"></div>
+      <video src="${SIN_TOWER_OPENING_VIDEO}" autoplay muted loop playsinline></video>`;
+    document.body.appendChild(overlay);
+    return overlay;
+  }
+  openReading(title,text){
+    $('[data-sin-reading-title]',this.readingOverlay).textContent=title||'紀錄';
+    $('[data-sin-reading-text]',this.readingOverlay).textContent=text||'';
+    this.readingOverlay.hidden=false;
+  }
+  closeReading(){
+    if(this.readingOverlay) this.readingOverlay.hidden=true;
+  }
+  handleKeyDown(event){
+    if(!this.passwordOverlay.hidden){
+      event.preventDefault();
+      if(event.code==='Escape'){this.closePassword();return true;}
+      if(event.code==='ArrowUp'||event.code==='KeyW'){this.adjustPassword(1);return true;}
+      if(event.code==='ArrowDown'||event.code==='KeyS'){this.adjustPassword(-1);return true;}
+      if(event.code==='ArrowLeft'||event.code==='KeyA'){this.movePasswordSelection(-1);return true;}
+      if(event.code==='ArrowRight'||event.code==='KeyD'){this.movePasswordSelection(1);return true;}
+      return true;
+    }
+    if(!this.readingOverlay.hidden){
+      if(event.code==='Escape'||event.code==='Enter'){
+        event.preventDefault();
+        this.closeReading();
+        return true;
+      }
+    }
+    if(this.movementFrozen&&['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(event.code)){
+      this.beginStairRun();
+    }
+    return false;
+  }
+  debugState(){
+    return {area:this.area,activeRoom:this.activeRoom,currentFloor:this.currentFloor,passwordOpen:!this.passwordOverlay.hidden,readingOpen:!this.readingOverlay.hidden,frozen:this.movementFrozen,attachedMonks:this.attachedMonks,slowDebuff:+this.slowDebuff.toFixed(3)};
+  }
+}
+
 class GameApp{
   constructor(){
     this.canvas=$('#game-canvas');
-    this.renderer=new THREE.WebGLRenderer({canvas:this.canvas,antialias:true,powerPreference:'high-performance'});
+    this.renderer=new THREE.WebGLRenderer({canvas:this.canvas,antialias:true,powerPreference:'high-performance',preserveDrawingBuffer:true});
     this.renderer.outputColorSpace=THREE.SRGBColorSpace;
     this.renderer.setClearColor('#071018');
     this.scene=new THREE.Scene();
-    this.scene.background=new THREE.Color('#071018');
-    this.scene.fog=new THREE.Fog('#071018',26,78);
-    this.camera=new THREE.PerspectiveCamera(62,1,.05,160);
+    this.scene.background=new THREE.Color('#05070a');
+    this.scene.fog=new THREE.Fog('#05070a',90,1350);
+    this.camera=new THREE.PerspectiveCamera(62,1,.05,2400);
     this.cameraYaw=0;
     this.cameraPitch=.34;
     this.cameraDistance=7;
@@ -1200,6 +2146,7 @@ class GameApp{
     this.actors=new ActorRuntime(this);
     this.ui=new UILayer(this);
     this.creator=new CreatorBackend(this);
+    this.sinTower=new SinTowerRuntime(this);
     this.input=new InputController(this);
     this.loadProject();
     this.resize();
@@ -1209,14 +2156,43 @@ class GameApp{
     window.gameTemplate=this;
   }
   setupScene(){
-    const hemi=new THREE.HemisphereLight('#b8d8ff','#1a2430',1.2);
+    const hemi=new THREE.HemisphereLight('#f1e6c2','#100c0a',.82);
     this.scene.add(hemi);
-    const sun=new THREE.DirectionalLight('#ffffff',1.8);
-    sun.position.set(8,12,6);
+    const sun=new THREE.DirectionalLight('#ffd89c',1.35);
+    sun.position.set(-16,48,24);
     this.scene.add(sun);
+    const amber=new THREE.PointLight('#ff7a1a',3.8,620,1.4);
+    amber.position.set(0,80,-140);
+    this.scene.add(amber);
+    this.roomLight=new THREE.PointLight('#ffd7a3',9,180,1.1);
+    this.roomLight.visible=false;
+    this.scene.add(this.roomLight);
+    this.setupSinAmbientParticles();
     this.player.mesh=new THREE.Group();
     this.player.mesh.name='TemplatePlayer';
     this.scene.add(this.player.mesh);
+  }
+  setupSinAmbientParticles(){
+    const count=3600;
+    const positions=new Float32Array(count*3);
+    const colors=new Float32Array(count*3);
+    for(let i=0;i<count;i++){
+      const floor=Math.random()*330;
+      const p=sinFloorPosition(floor);
+      positions[i*3]=(Math.random()-.5)*22;
+      positions[i*3+1]=p.y+2+Math.random()*18;
+      positions[i*3+2]=p.z+(Math.random()-.5)*70;
+      colors[i*3]=1;
+      colors[i*3+1]=.62+Math.random()*.25;
+      colors[i*3+2]=.18+Math.random()*.12;
+    }
+    const geometry=new THREE.BufferGeometry();
+    geometry.setAttribute('position',new THREE.BufferAttribute(positions,3));
+    geometry.setAttribute('color',new THREE.BufferAttribute(colors,3));
+    const material=new THREE.PointsMaterial({size:.055,vertexColors:true,transparent:true,opacity:.72,depthWrite:false,blending:THREE.AdditiveBlending});
+    const points=new THREE.Points(geometry,material);
+    points.name='SinTowerAmbientParticles';
+    this.scene.add(points);
   }
   loadProject(){
     let project=null;
@@ -1244,6 +2220,7 @@ class GameApp{
     this.creator.refresh();
   }
   restartGame(show=true){
+    this.sinTower?.reset();
     this.game.score=0;
     this.game.health=100;
     this.game.message='';
@@ -1279,10 +2256,15 @@ class GameApp{
     if(!this.creator.active || this.creator.canUpdatePlayer()) this.updatePlayer(dt);
     this.world.updateTriggers(this.player.position);
     this.actors.update(dt);
+    this.sinTower.update(dt);
     this.updateCamera();
     this.ui.updateBindings();
   }
   updatePlayer(dt){
+    if(this.sinTower?.area==='stairs'&&!this.creator.active){
+      this.sinTower.updateStairPlayer(dt);
+      return;
+    }
     const move=this.input.movementVector();
     const direction=new THREE.Vector3();
     const forward=this.getCameraForward();
@@ -1290,7 +2272,8 @@ class GameApp{
     direction.addScaledVector(forward,move.forward);
     direction.addScaledVector(right,move.strafe);
     if(direction.lengthSq()>0){
-      direction.normalize().multiplyScalar(this.player.speed*dt);
+      const speed=this.sinTower?.area==='room'?SIN_ROOM_SPEED:this.player.speed;
+      direction.normalize().multiplyScalar(speed*dt);
       const nextX=this.player.position.clone();
       nextX.x+=direction.x;
       if(!this.world.collidesAt(nextX)) this.player.position.x=nextX.x;
@@ -1357,8 +2340,15 @@ class GameApp{
   renderGameToText(){
     const nearby=this.world.data.objects
       .filter(object=>!this.world.destroyedIds.has(object.id))
-      .map(object=>({id:object.id,type:object.type,name:object.name,x:+object.transform.position.x.toFixed(2),y:+object.transform.position.y.toFixed(2),z:+object.transform.position.z.toFixed(2),collidable:!!object.flags.collidable,trigger:!!object.flags.trigger,interactive:!!object.flags.interactive,destructible:!!object.flags.destructible}))
-      .slice(0,60);
+      .map(object=>{
+        const p=object.transform.position;
+        const dx=p.x-this.player.position.x;
+        const dy=p.y-this.player.position.y;
+        const dz=p.z-this.player.position.z;
+        return {id:object.id,type:object.type,name:object.name,x:+p.x.toFixed(2),y:+p.y.toFixed(2),z:+p.z.toFixed(2),distance:+Math.sqrt(dx*dx+dy*dy+dz*dz).toFixed(2),kind:object.logic?.kind||'',collidable:!!object.flags.collidable,trigger:!!object.flags.trigger,interactive:!!object.flags.interactive,destructible:!!object.flags.destructible};
+      })
+      .sort((a,b)=>a.distance-b.distance)
+      .slice(0,80);
     return JSON.stringify({
       note:'座標使用 Three.js 世界空間：X 向右、Y 向上、Z 為前後方向。',
       mode:this.creator.active?`creator:${this.creator.mode}`:'game',
@@ -1367,6 +2357,7 @@ class GameApp{
       score:this.game.score,
       health:this.game.health,
       message:this.game.message,
+      sinTower:this.sinTower.debugState(),
       creator:this.creator.active?this.creator.getDebugState():null,
       actors:{npcCount:this.actors.data.npcs.length,playerModel:this.actors.getRole('player')?.model?.type||'primitive',npcModel:this.actors.getRole('npc')?.model?.type||'primitive'},
       objects:nearby
@@ -1666,7 +2657,7 @@ class ActorEditor{
         <label>名稱<input data-actor-role-field="name" value="${escapeHTML(role.name)}"></label>
         <div class="creator-grid two">
           <label>模型類型<select data-actor-model-field="type">
-            ${['primitive','spriteSequence','gltf'].map(type=>`<option value="${type}" ${model.type===type?'selected':''}>${ACTOR_MODEL_LABELS[type]}</option>`).join('')}
+            ${['primitive','spriteSequence','gltf','fbx'].map(type=>`<option value="${type}" ${model.type===type?'selected':''}>${ACTOR_MODEL_LABELS[type]}</option>`).join('')}
           </select></label>
           <label>模型縮放<input data-actor-model-field="scale" type="number" min="0.05" step="0.05" value="${model.scale??1}"></label>
           <label>序列 FPS<input data-actor-model-field="frameRate" type="number" min="1" step="1" value="${model.frameRate??8}"></label>
@@ -1833,7 +2824,7 @@ class ActorEditor{
   requestImport(kind){
     this.pendingImport={kind,role:this.role};
     this.fileInput.multiple=kind==='png';
-    this.fileInput.accept=kind==='png'?'image/png,.png':'.glb,.gltf,model/gltf+json,model/gltf-binary';
+    this.fileInput.accept=kind==='png'?'image/png,.png':'.glb,.gltf,.fbx,model/gltf+json,model/gltf-binary';
     this.fileInput.click();
   }
   async handleActorFile(event){
@@ -1853,7 +2844,8 @@ class ActorEditor{
     }else{
       const file=files[0];
       const src=await this.readFile(file);
-      this.setRoleModel({type:'gltf',src,fileName:file.name,sequence:[]});
+      const type=/\.fbx$/i.test(file.name)?'fbx':'gltf';
+      this.setRoleModel({type,src,fileName:file.name,sequence:[]});
     }
     this.role=previousRole;
     this.refresh();

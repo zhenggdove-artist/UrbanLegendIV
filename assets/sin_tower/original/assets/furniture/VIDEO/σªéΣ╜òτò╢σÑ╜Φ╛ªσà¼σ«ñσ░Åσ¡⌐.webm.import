@@ -1,0 +1,16 @@
+[remap]
+
+importer="oggvideostream"
+type="VideoStreamTheora"
+uid="uid://djfj8y3qm4vgy"
+path="res://.godot/imported/如何當好辦公室小孩.webm-b8e5f3c7d9a2c1e4f6g7h8i9j0k1l2m3.oggvideostr"
+
+[deps]
+
+source_file="res://assets/furniture/VIDEO/如何當好辦公室小孩.webm"
+dest_files=["res://.godot/imported/如何當好辦公室小孩.webm-b8e5f3c7d9a2c1e4f6g7h8i9j0k1l2m3.oggvideostr"]
+
+[params]
+
+loop=false
+loop_offset=0
